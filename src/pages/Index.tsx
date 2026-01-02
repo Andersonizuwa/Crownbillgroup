@@ -10,8 +10,13 @@ import {
   CheckCircle2,
   Globe,
   Lock,
-  Zap
+  Zap,
+  Award,
+  PieChart
 } from "lucide-react";
+import heroImage from "@/assets/hero-finance.jpg";
+import investmentImage from "@/assets/investment-hero.jpg";
+import planningImage from "@/assets/planning-hero.jpg";
 
 const Index = () => {
   const features = [

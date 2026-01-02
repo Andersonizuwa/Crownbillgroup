@@ -17,6 +17,8 @@ const Header = () => {
 
   const navItems = [
     { label: "Why Fidelity", path: "/why-fidelity" },
+    { label: "Grants", path: "/grants" },
+    { label: "Investment", path: "/investment" },
   ];
 
   const tradeSubItems = [
