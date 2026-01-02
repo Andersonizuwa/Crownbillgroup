@@ -7,6 +7,7 @@ import Layout from "@/components/layout/Layout";
 import { Eye, EyeOff, Lock, Mail, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -65,11 +66,22 @@ const Login = () => {
       description: "Welcome back!",
     });
 
-    // Check if admin and redirect accordingly
-    setTimeout(() => {
+    // Allow time for admin status to be checked, then redirect
+    setTimeout(async () => {
       setIsLoading(false);
-      // The auth context will handle admin check, redirect based on that
-      navigate("/trade");
+      // Check if user is admin by re-fetching their role
+      const { data } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      
+      if (data) {
+        navigate("/admin");
+      } else {
+        navigate("/trade");
+      }
     }, 500);
   };
 
