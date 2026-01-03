@@ -75,7 +75,7 @@ const WhyFidelity = () => {
         <div className="container-main py-20 md:py-28 relative z-10">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground leading-tight animate-slide-up">
-              Why Millions Trust Fidelity With Their Investments
+              Why Millions Trust CrownBillGroup With Their Investments
             </h1>
             <p className="mt-6 text-lg md:text-xl text-primary-foreground/80 animate-slide-up" style={{ animationDelay: '0.1s' }}>
               For over seven decades, we've been helping investors like you build wealth and achieve their financial dreams.
@@ -111,10 +111,10 @@ const WhyFidelity = () => {
         <div className="container-main">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground">
-              The Fidelity Advantage
+              The CrownBillGroup Advantage
             </h2>
             <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
-              Discover why more investors choose Fidelity for their investment needs.
+              Discover why more investors choose CrownBillGroup for their investment needs.
             </p>
           </div>
 
@@ -197,7 +197,7 @@ const WhyFidelity = () => {
               Ready to Experience the Difference?
             </h2>
             <p className="mt-4 text-lg text-primary-foreground/80 max-w-2xl mx-auto">
-              Join millions of investors who trust Fidelity with their financial future.
+              Join millions of investors who trust CrownBillGroup with their financial future.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/register">

@@ -16,7 +16,7 @@ const Header = () => {
   const isActive = (path: string) => location.pathname === path;
 
   const navItems = [
-    { label: "Why Fidelity", path: "/why-fidelity" },
+    { label: "Why CrownBill", path: "/why-fidelity" },
     { label: "Grants", path: "/grants" },
     { label: "Investment", path: "/investment" },
   ];
@@ -36,9 +36,9 @@ const Header = () => {
           <Link to="/" className="flex items-center space-x-2">
             <div className="flex items-center">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-primary-foreground font-bold text-lg">F</span>
+                <span className="text-primary-foreground font-bold text-lg">C</span>
               </div>
-              <span className="ml-2 text-xl font-bold text-foreground">Fidelity</span>
+              <span className="ml-2 text-xl font-bold text-foreground">CrownBillGroup</span>
             </div>
           </Link>
 

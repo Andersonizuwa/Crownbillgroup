@@ -91,10 +91,10 @@ const Login = () => {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-xl bg-primary mx-auto mb-4 flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-2xl">F</span>
+              <span className="text-primary-foreground font-bold text-2xl">C</span>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">Welcome Back</h1>
-            <p className="mt-2 text-muted-foreground">Sign in to access your account</p>
+            <p className="mt-2 text-muted-foreground">Sign in to your CrownBillGroup account</p>
           </div>
 
           <div className="card-elevated-lg p-6 md:p-8">

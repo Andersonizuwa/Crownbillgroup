@@ -13,7 +13,7 @@ const Footer = () => {
       { label: "Contact Us", path: "/customer-service" },
     ],
     "About": [
-      { label: "Why Fidelity", path: "/why-fidelity" },
+      { label: "Why CrownBill", path: "/why-fidelity" },
       { label: "Careers", path: "#" },
       { label: "Newsroom", path: "#" },
     ],
@@ -58,14 +58,14 @@ const Footer = () => {
           {/* Logo */}
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-lg bg-primary-foreground/10 flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">F</span>
+              <span className="text-primary-foreground font-bold text-lg">C</span>
             </div>
-            <span className="ml-2 text-lg font-bold">Fidelity</span>
+            <span className="ml-2 text-lg font-bold">CrownBillGroup</span>
           </div>
 
           {/* Copyright */}
           <p className="text-sm text-primary-foreground/60 text-center md:text-left">
-            © {new Date().getFullYear()} Fidelity Investments. All rights reserved.
+            © {new Date().getFullYear()} CrownBillGroup. All rights reserved.
           </p>
 
           {/* Disclaimer */}

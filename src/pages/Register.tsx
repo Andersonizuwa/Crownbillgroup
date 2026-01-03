@@ -14,6 +14,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   User, 
   FileText, 
@@ -38,6 +40,7 @@ const steps = [
 const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signUp } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -142,15 +145,50 @@ const Register = () => {
 
     setIsSubmitting(true);
     
-    // Simulate submission
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // Create user account
+      const { error } = await signUp(formData.email, formData.password, formData.fullName);
+      
+      if (error) {
+        toast({
+          title: "Registration Failed",
+          description: error.message || "Failed to create account",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Update profile with additional data
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        await supabase.from('profiles').update({
+          phone: formData.phone,
+          date_of_birth: formData.dateOfBirth,
+          marital_status: formData.maritalStatus,
+          nationality: formData.nationality,
+          country_of_residence: formData.countryOfResidence,
+          tax_id: formData.taxId,
+          is_pep: formData.isPEP === 'yes',
+          pep_details: formData.pepDetails || null,
+        }).eq('user_id', user.id);
+      }
+
       toast({
-        title: "Application Submitted",
-        description: "Your application has been submitted for review. We'll contact you within 24-48 hours.",
+        title: "Account Created Successfully",
+        description: "Welcome to CrownBillGroup! You can now log in.",
       });
       navigate("/login");
-    }, 2000);
+    } catch (err) {
+      toast({
+        title: "Registration Failed",
+        description: "An error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const FileUpload = ({ 
