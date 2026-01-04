@@ -84,7 +84,41 @@ const Register = () => {
     }
   };
 
+  const validateFile = (file: File | null, type: 'id' | 'address'): string | null => {
+    if (!file) return null;
+    
+    // Check file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return "File size must be less than 10MB";
+    }
+    
+    // Check file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      return "Please upload a valid document (JPG, PNG, or PDF)";
+    }
+    
+    // Check minimum file size (at least 50KB to be a real document)
+    const minSize = 50 * 1024;
+    if (file.size < minSize) {
+      return "File appears to be too small. Please upload a clear, readable document";
+    }
+    
+    return null;
+  };
+
   const handleFileChange = (name: string, file: File | null) => {
+    // Validate file before setting
+    if (file) {
+      const fileType = name === 'idDocument' ? 'id' : 'address';
+      const validationError = validateFile(file, fileType);
+      if (validationError) {
+        setErrors((prev) => ({ ...prev, [name]: validationError }));
+        return; // Don't set the file if validation fails
+      }
+    }
+    
     setFormData((prev) => ({ ...prev, [name]: file }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));

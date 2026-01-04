@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+import heroImage from "@/assets/hero-finance.jpg";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -80,15 +81,20 @@ const Login = () => {
       if (data) {
         navigate("/admin");
       } else {
-        navigate("/trade");
+        navigate("/dashboard");
       }
     }, 500);
   };
 
   return (
     <Layout>
-      <div className="min-h-[calc(100vh-200px)] flex items-center justify-center py-12 px-4">
-        <div className="w-full max-w-md">
+      <div className="min-h-[calc(100vh-200px)] flex items-center justify-center py-12 px-4 relative">
+        {/* Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-10"
+          style={{ backgroundImage: `url(${heroImage})` }}
+        />
+        <div className="w-full max-w-md relative z-10">
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-xl bg-primary mx-auto mb-4 flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-2xl">C</span>
