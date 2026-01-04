@@ -41,6 +41,54 @@ export type Database = {
         }
         Relationships: []
       }
+      grant_applications: {
+        Row: {
+          contact_email: string
+          contact_name: string
+          contact_phone: string | null
+          created_at: string | null
+          grant_type: string
+          id: string
+          organization_name: string
+          organization_type: string | null
+          project_description: string
+          requested_amount: number
+          status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_email: string
+          contact_name: string
+          contact_phone?: string | null
+          created_at?: string | null
+          grant_type: string
+          id?: string
+          organization_name: string
+          organization_type?: string | null
+          project_description: string
+          requested_amount: number
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_email?: string
+          contact_name?: string
+          contact_phone?: string | null
+          created_at?: string | null
+          grant_type?: string
+          id?: string
+          organization_name?: string
+          organization_type?: string | null
+          project_description?: string
+          requested_amount?: number
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       kyc_documents: {
         Row: {
           created_at: string | null

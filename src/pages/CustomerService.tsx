@@ -20,6 +20,7 @@ import {
   HelpCircle,
   ArrowRight
 } from "lucide-react";
+import heroImage from "@/assets/hero-finance.jpg";
 
 const CustomerService = () => {
   const supportOptions = [
@@ -82,16 +83,25 @@ const CustomerService = () => {
 
   return (
     <Layout>
-      <div className="container-main py-8 md:py-12">
-        {/* Page Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground">
+      {/* Hero Section */}
+      <section className="relative overflow-hidden py-16">
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${heroImage})` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/85 to-primary/70" />
+        </div>
+        <div className="container-main relative z-10 text-center">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-primary-foreground">
             How Can We Help You?
           </h1>
-          <p className="mt-4 text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="mt-4 text-lg text-primary-foreground/80 max-w-2xl mx-auto">
             Our support team is here to assist you 24/7 with any questions or concerns.
           </p>
         </div>
+      </section>
+
+      <div className="container-main py-8 md:py-12">
 
         {/* Search */}
         <div className="max-w-2xl mx-auto mb-12">

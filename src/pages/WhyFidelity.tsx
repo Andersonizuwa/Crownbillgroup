@@ -13,6 +13,7 @@ import {
   HeartHandshake,
   Lightbulb
 } from "lucide-react";
+import heroImage from "@/assets/planning-hero.jpg";
 
 const WhyFidelity = () => {
   const reasons = [
@@ -71,7 +72,14 @@ const WhyFidelity = () => {
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
+      <section className="relative overflow-hidden min-h-[50vh] flex items-center">
+        {/* Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${heroImage})` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/85 to-primary/70" />
+        </div>
         <div className="container-main py-20 md:py-28 relative z-10">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-primary-foreground leading-tight animate-slide-up">

@@ -13,6 +13,7 @@ import {
   Wallet,
   LineChart
 } from "lucide-react";
+import heroImage from "@/assets/investment-hero.jpg";
 
 const Investment = () => {
   const investmentOptions = [
@@ -86,7 +87,14 @@ const Investment = () => {
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
+      <section className="relative overflow-hidden min-h-[60vh] flex items-center">
+        {/* Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${heroImage})` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/85 to-primary/70" />
+        </div>
         <div className="container-main relative z-10 py-16 md:py-24">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -133,7 +141,6 @@ const Investment = () => {
           </div>
         </div>
       </section>
-
       {/* Investment Options */}
       <section className="section-padding">
         <div className="container-main">

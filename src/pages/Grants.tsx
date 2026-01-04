@@ -10,6 +10,7 @@ import {
   FileText,
   DollarSign
 } from "lucide-react";
+import heroImage from "@/assets/hero-finance.jpg";
 
 const Grants = () => {
   const grantPrograms = [
@@ -45,7 +46,14 @@ const Grants = () => {
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="relative overflow-hidden" style={{ background: 'var(--gradient-hero)' }}>
+      <section className="relative overflow-hidden min-h-[50vh] flex items-center">
+        {/* Background Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${heroImage})` }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/95 via-primary/85 to-primary/70" />
+        </div>
         <div className="container-main relative z-10 py-16 md:py-24">
           <div className="max-w-3xl">
             <h1 className="text-4xl md:text-5xl font-bold text-primary-foreground leading-tight animate-slide-up">
@@ -56,10 +64,12 @@ const Grants = () => {
               Apply today and help us build a better tomorrow.
             </p>
             <div className="mt-8 animate-slide-up" style={{ animationDelay: '0.2s' }}>
-              <Button variant="hero" size="xl">
-                Apply for a Grant
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
+              <Link to="/grant-application">
+                <Button variant="hero" size="xl">
+                  Apply for a Grant
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -172,9 +182,11 @@ const Grants = () => {
                 Start your grant application today and join hundreds of organizations making a difference.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <Button variant="hero" size="xl">
-                  Start Application
-                </Button>
+                <Link to="/grant-application">
+                  <Button variant="hero" size="xl">
+                    Start Application
+                  </Button>
+                </Link>
                 <Link to="/customer-service">
                   <Button variant="hero-outline" size="xl">
                     Contact Us
