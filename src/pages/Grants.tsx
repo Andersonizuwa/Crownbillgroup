@@ -8,7 +8,6 @@ import {
   Users,
   Target,
   FileText,
-  Calendar,
   DollarSign
 } from "lucide-react";
 
@@ -18,21 +17,18 @@ const Grants = () => {
       title: "Education Grant",
       amount: "Up to $50,000",
       description: "Supporting educational initiatives and scholarship programs for underserved communities.",
-      deadline: "March 31, 2026",
       eligibility: ["Non-profit organizations", "Educational institutions", "Community groups"],
     },
     {
       title: "Small Business Grant",
       amount: "Up to $25,000",
       description: "Empowering small businesses and entrepreneurs to grow and create jobs.",
-      deadline: "Rolling applications",
       eligibility: ["Small businesses (<50 employees)", "Minority-owned businesses", "Women-owned businesses"],
     },
     {
       title: "Community Development Grant",
       amount: "Up to $100,000",
       description: "Investing in projects that strengthen local communities and improve quality of life.",
-      deadline: "June 30, 2026",
       eligibility: ["Non-profit organizations", "Local governments", "Community foundations"],
     },
   ];
@@ -94,11 +90,6 @@ const Grants = () => {
                   </div>
                 </div>
                 <p className="text-muted-foreground mb-4">{grant.description}</p>
-                
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                  <Calendar className="h-4 w-4" />
-                  <span>Deadline: {grant.deadline}</span>
-                </div>
 
                 <div className="border-t border-border pt-4">
                   <p className="text-sm font-medium text-foreground mb-2">Eligibility:</p>
