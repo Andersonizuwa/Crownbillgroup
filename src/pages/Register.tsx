@@ -22,12 +22,14 @@ import {
   Home, 
   CreditCard, 
   Shield,
+  Building2,
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
   Upload,
   AlertCircle
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const steps = [
   { id: 1, title: "Personal Info", icon: User },
@@ -35,6 +37,7 @@ const steps = [
   { id: 3, title: "Address & Funds", icon: Home },
   { id: 4, title: "Tax Info", icon: CreditCard },
   { id: 5, title: "PEP Declaration", icon: Shield },
+  { id: 6, title: "Business Info", icon: Building2 },
 ];
 
 const Register = () => {
@@ -65,6 +68,12 @@ const Register = () => {
     // Step 5 - PEP Declaration
     isPEP: "",
     pepDetails: "",
+    // Step 6 - Business Info
+    hasBusiness: false,
+    businessName: "",
+    businessType: "",
+    businessIndustry: "",
+    businessTaxId: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -158,6 +167,15 @@ const Register = () => {
           newErrors.pepDetails = "Please provide details about your PEP status";
         }
         break;
+      case 6:
+        // Business info is optional - only validate if they have a business
+        if (formData.hasBusiness) {
+          if (!formData.businessName.trim()) newErrors.businessName = "Business name is required";
+          if (!formData.businessType) newErrors.businessType = "Business type is required";
+          if (!formData.businessIndustry) newErrors.businessIndustry = "Industry is required";
+          if (!formData.businessTaxId.trim()) newErrors.businessTaxId = "Business tax ID is required";
+        }
+        break;
     }
 
     setErrors(newErrors);
@@ -166,7 +184,7 @@ const Register = () => {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, 5));
+      setCurrentStep((prev) => Math.min(prev + 1, 6));
     }
   };
 
@@ -206,6 +224,11 @@ const Register = () => {
           tax_id: formData.taxId,
           is_pep: formData.isPEP === 'yes',
           pep_details: formData.pepDetails || null,
+          has_business: formData.hasBusiness,
+          business_name: formData.hasBusiness ? formData.businessName : null,
+          business_type: formData.hasBusiness ? formData.businessType : null,
+          business_industry: formData.hasBusiness ? formData.businessIndustry : null,
+          business_tax_id: formData.hasBusiness ? formData.businessTaxId : null,
         }).eq('user_id', user.id);
       }
 
@@ -570,6 +593,113 @@ const Register = () => {
           </div>
         );
 
+      case 6:
+        return (
+          <div className="space-y-6 animate-fade-in">
+            <div className="space-y-4">
+              <Label className="text-lg font-medium">Business Loan Eligibility</Label>
+              <p className="text-sm text-muted-foreground">
+                Is you or a family member's business eligible for a loan? Please provide your business details below.
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
+              <Checkbox
+                id="hasBusiness"
+                checked={!formData.hasBusiness}
+                onCheckedChange={(checked) => {
+                  setFormData(prev => ({ ...prev, hasBusiness: !checked }));
+                }}
+              />
+              <Label htmlFor="hasBusiness" className="cursor-pointer font-medium">
+                I don't have a business
+              </Label>
+            </div>
+
+            {formData.hasBusiness && (
+              <div className="space-y-5 animate-fade-in">
+                <div className="space-y-2">
+                  <Label htmlFor="businessName">Business Name *</Label>
+                  <Input
+                    id="businessName"
+                    name="businessName"
+                    value={formData.businessName}
+                    onChange={handleInputChange}
+                    placeholder="The legal name of your business"
+                    className={errors.businessName ? "border-destructive" : ""}
+                  />
+                  {errors.businessName && <p className="text-sm text-destructive">{errors.businessName}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Business Type *</Label>
+                  <Select value={formData.businessType} onValueChange={(v) => handleSelectChange("businessType", v)}>
+                    <SelectTrigger className={errors.businessType ? "border-destructive" : ""}>
+                      <SelectValue placeholder="Select business type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sole-proprietorship">Sole Proprietorship</SelectItem>
+                      <SelectItem value="llc">LLC (Limited Liability Company)</SelectItem>
+                      <SelectItem value="corporation">Corporation</SelectItem>
+                      <SelectItem value="partnership">Partnership</SelectItem>
+                      <SelectItem value="nonprofit">Non-Profit Organization</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.businessType && <p className="text-sm text-destructive">{errors.businessType}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Industry / Category *</Label>
+                  <Select value={formData.businessIndustry} onValueChange={(v) => handleSelectChange("businessIndustry", v)}>
+                    <SelectTrigger className={errors.businessIndustry ? "border-destructive" : ""}>
+                      <SelectValue placeholder="Select industry" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ecommerce">eCommerce / Retail</SelectItem>
+                      <SelectItem value="consulting">Consulting / Professional Services</SelectItem>
+                      <SelectItem value="saas">SaaS / Technology</SelectItem>
+                      <SelectItem value="healthcare">Healthcare / Medical</SelectItem>
+                      <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                      <SelectItem value="real-estate">Real Estate</SelectItem>
+                      <SelectItem value="hospitality">Hospitality / Food Service</SelectItem>
+                      <SelectItem value="construction">Construction</SelectItem>
+                      <SelectItem value="finance">Finance / Insurance</SelectItem>
+                      <SelectItem value="education">Education</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {errors.businessIndustry && <p className="text-sm text-destructive">{errors.businessIndustry}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="businessTaxId">Tax Information (EIN/SSN) *</Label>
+                  <Input
+                    id="businessTaxId"
+                    name="businessTaxId"
+                    value={formData.businessTaxId}
+                    onChange={handleInputChange}
+                    placeholder="Enter EIN or SSN for tax purposes"
+                    className={errors.businessTaxId ? "border-destructive" : ""}
+                  />
+                  {errors.businessTaxId && <p className="text-sm text-destructive">{errors.businessTaxId}</p>}
+                  <p className="text-xs text-muted-foreground">
+                    Employer Identification Number (EIN) or Social Security Number (SSN) if sole proprietor
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-accent/5 border border-accent/20 rounded-lg p-4">
+              <h4 className="font-medium text-foreground mb-2">Why We Need This</h4>
+              <p className="text-sm text-muted-foreground">
+                This information helps us determine loan eligibility and provide appropriate financial services 
+                tailored to your business needs. All information is kept confidential and secure.
+              </p>
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -647,7 +777,7 @@ const Register = () => {
                 Back
               </Button>
 
-              {currentStep < 5 ? (
+              {currentStep < 6 ? (
                 <Button variant="accent" onClick={handleNext}>
                   Next
                   <ArrowRight className="ml-2 h-4 w-4" />
