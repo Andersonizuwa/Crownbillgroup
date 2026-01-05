@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -43,6 +44,10 @@ import {
   LayoutDashboard,
   History,
   Settings,
+  FileCheck,
+  CheckCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -55,6 +60,18 @@ interface UserProfile {
   account_status: 'active' | 'inactive' | 'pending';
   kyc_status: string;
   created_at: string;
+  date_of_birth: string | null;
+  nationality: string | null;
+  country_of_residence: string | null;
+  marital_status: string | null;
+  tax_id: string | null;
+  is_pep: boolean | null;
+  pep_details: string | null;
+  has_business: boolean | null;
+  business_name: string | null;
+  business_type: string | null;
+  business_industry: string | null;
+  business_tax_id: string | null;
 }
 
 interface UserWallet {
@@ -317,6 +334,14 @@ const AdminDashboard = () => {
               Transactions
             </Button>
             <Button
+              variant={activeTab === "grants" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("grants")}
+            >
+              <FileCheck className="h-4 w-4 mr-2" />
+              Grant Applications
+            </Button>
+            <Button
               variant={activeTab === "activity" ? "secondary" : "ghost"}
               className="w-full justify-start"
               onClick={() => setActiveTab("activity")}
@@ -492,6 +517,10 @@ const AdminDashboard = () => {
             <TransactionsTab users={users} />
           )}
 
+          {activeTab === "grants" && (
+            <GrantApplicationsTab users={users} />
+          )}
+
           {activeTab === "activity" && (
             <ActivityLogsTab users={users} />
           )}
@@ -533,36 +562,115 @@ const AdminDashboard = () => {
 
       {/* View User Dialog */}
       <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>User Details</DialogTitle>
           </DialogHeader>
           {selectedUser && (
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">Email</Label>
-                  <p className="font-medium">{selectedUser.email}</p>
+            <div className="space-y-6 py-4">
+              {/* Personal Information */}
+              <div>
+                <h3 className="font-semibold text-lg mb-3 text-foreground">Personal Information</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Email</Label>
+                    <p className="font-medium">{selectedUser.email}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Full Name</Label>
+                    <p className="font-medium">{selectedUser.full_name || '-'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Phone</Label>
+                    <p className="font-medium">{selectedUser.phone || '-'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Date of Birth</Label>
+                    <p className="font-medium">{selectedUser.date_of_birth || '-'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Nationality</Label>
+                    <p className="font-medium capitalize">{selectedUser.nationality || '-'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Country of Residence</Label>
+                    <p className="font-medium capitalize">{selectedUser.country_of_residence || '-'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Marital Status</Label>
+                    <p className="font-medium capitalize">{selectedUser.marital_status || '-'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Tax ID</Label>
+                    <p className="font-medium">{selectedUser.tax_id || '-'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Created</Label>
+                    <p className="font-medium">{new Date(selectedUser.created_at).toLocaleString()}</p>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Full Name</Label>
-                  <p className="font-medium">{selectedUser.full_name || '-'}</p>
+              </div>
+
+              {/* Account Status */}
+              <div>
+                <h3 className="font-semibold text-lg mb-3 text-foreground">Account Status</h3>
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Account Status</Label>
+                    <p className="font-medium capitalize">{selectedUser.account_status}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">KYC Status</Label>
+                    <p className="font-medium capitalize">{selectedUser.kyc_status}</p>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Phone</Label>
-                  <p className="font-medium">{selectedUser.phone || '-'}</p>
+              </div>
+
+              {/* PEP Information */}
+              <div>
+                <h3 className="font-semibold text-lg mb-3 text-foreground">PEP Declaration</h3>
+                <div className="p-4 bg-muted/30 rounded-lg">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Is Politically Exposed Person</Label>
+                      <p className="font-medium">{selectedUser.is_pep ? 'Yes' : 'No'}</p>
+                    </div>
+                    {selectedUser.is_pep && selectedUser.pep_details && (
+                      <div className="col-span-2">
+                        <Label className="text-muted-foreground text-xs">PEP Details</Label>
+                        <p className="font-medium">{selectedUser.pep_details}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-muted-foreground">Account Status</Label>
-                  <p className="font-medium capitalize">{selectedUser.account_status}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">KYC Status</Label>
-                  <p className="font-medium capitalize">{selectedUser.kyc_status}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Created</Label>
-                  <p className="font-medium">{new Date(selectedUser.created_at).toLocaleString()}</p>
+              </div>
+
+              {/* Business Information */}
+              <div>
+                <h3 className="font-semibold text-lg mb-3 text-foreground">Business Information</h3>
+                <div className="p-4 bg-muted/30 rounded-lg">
+                  {selectedUser.has_business ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Business Name</Label>
+                        <p className="font-medium">{selectedUser.business_name || '-'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Business Type</Label>
+                        <p className="font-medium capitalize">{selectedUser.business_type?.replace('-', ' ') || '-'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Industry</Label>
+                        <p className="font-medium capitalize">{selectedUser.business_industry?.replace('-', ' ') || '-'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Business Tax ID (EIN/SSN)</Label>
+                        <p className="font-medium">{selectedUser.business_tax_id || '-'}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">No business registered</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -859,6 +967,336 @@ const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
           </Table>
         )}
       </div>
+    </div>
+  );
+};
+
+// Grant Applications Tab Component
+interface GrantApplication {
+  id: string;
+  user_id: string;
+  grant_type: string;
+  organization_name: string;
+  organization_type: string | null;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string | null;
+  project_description: string;
+  requested_amount: number;
+  status: string;
+  admin_notes: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+}
+
+const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
+  const { toast } = useToast();
+  const [applications, setApplications] = useState<GrantApplication[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedApplication, setSelectedApplication] = useState<GrantApplication | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [adminNotes, setAdminNotes] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const getUserEmail = (userId: string) => {
+    const user = users.find(u => u.user_id === userId);
+    return user?.email || 'Unknown';
+  };
+
+  const fetchApplications = async () => {
+    setLoading(true);
+    try {
+      let query = supabase
+        .from('grant_applications')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (statusFilter !== "all") {
+        query = query.eq('status', statusFilter);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      setApplications(data || []);
+    } catch (error) {
+      console.error('Error fetching applications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchApplications();
+  }, [statusFilter]);
+
+  const updateApplicationStatus = async (applicationId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('grant_applications')
+        .update({ 
+          status: newStatus,
+          admin_notes: adminNotes || null,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', applicationId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Application ${newStatus} successfully`,
+      });
+
+      setIsReviewOpen(false);
+      setSelectedApplication(null);
+      setAdminNotes("");
+      fetchApplications();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update application",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Approved</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive">Rejected</Badge>;
+      case 'under_review':
+        return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Under Review</Badge>;
+      default:
+        return <Badge variant="secondary">Pending</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Grant Applications</h2>
+          <p className="text-muted-foreground">Review and manage grant applications</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="under_review">Under Review</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="card-elevated">
+        {loading ? (
+          <div className="p-8 text-center">Loading...</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Applicant</TableHead>
+                <TableHead>Organization</TableHead>
+                <TableHead>Grant Type</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {applications.map((application) => (
+                <TableRow key={application.id}>
+                  <TableCell>{new Date(application.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{getUserEmail(application.user_id)}</TableCell>
+                  <TableCell className="font-medium">{application.organization_name}</TableCell>
+                  <TableCell className="capitalize">{application.grant_type.replace('-', ' ')}</TableCell>
+                  <TableCell>${application.requested_amount.toLocaleString()}</TableCell>
+                  <TableCell>{getStatusBadge(application.status)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedApplication(application);
+                          setIsViewOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {application.status === 'pending' || application.status === 'under_review' ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedApplication(application);
+                            setAdminNotes(application.admin_notes || "");
+                            setIsReviewOpen(true);
+                          }}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {applications.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    No grant applications found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      {/* View Application Dialog */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Grant Application Details</DialogTitle>
+          </DialogHeader>
+          {selectedApplication && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Applicant Email</Label>
+                  <p className="font-medium">{getUserEmail(selectedApplication.user_id)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <div className="mt-1">{getStatusBadge(selectedApplication.status)}</div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Organization Name</Label>
+                  <p className="font-medium">{selectedApplication.organization_name}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Organization Type</Label>
+                  <p className="font-medium capitalize">{selectedApplication.organization_type || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Grant Type</Label>
+                  <p className="font-medium capitalize">{selectedApplication.grant_type.replace('-', ' ')}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Requested Amount</Label>
+                  <p className="font-medium text-accent">${selectedApplication.requested_amount.toLocaleString()}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Contact Name</Label>
+                  <p className="font-medium">{selectedApplication.contact_name}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Contact Email</Label>
+                  <p className="font-medium">{selectedApplication.contact_email}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Contact Phone</Label>
+                  <p className="font-medium">{selectedApplication.contact_phone || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Submitted</Label>
+                  <p className="font-medium">{new Date(selectedApplication.created_at).toLocaleString()}</p>
+                </div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Project Description</Label>
+                <p className="font-medium mt-1 p-3 bg-muted/50 rounded-lg">{selectedApplication.project_description}</p>
+              </div>
+              {selectedApplication.admin_notes && (
+                <div>
+                  <Label className="text-muted-foreground">Admin Notes</Label>
+                  <p className="font-medium mt-1 p-3 bg-muted/50 rounded-lg">{selectedApplication.admin_notes}</p>
+                </div>
+              )}
+              {selectedApplication.reviewed_at && (
+                <div>
+                  <Label className="text-muted-foreground">Reviewed At</Label>
+                  <p className="font-medium">{new Date(selectedApplication.reviewed_at).toLocaleString()}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Application Dialog */}
+      <Dialog open={isReviewOpen} onOpenChange={setIsReviewOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Review Application</DialogTitle>
+            <DialogDescription>
+              Update the status of this grant application for {selectedApplication?.organization_name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="admin-notes">Admin Notes</Label>
+              <Textarea
+                id="admin-notes"
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                placeholder="Add notes about this application..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (selectedApplication) {
+                  updateApplicationStatus(selectedApplication.id, 'under_review');
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <Clock className="h-4 w-4" />
+              Mark Under Review
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (selectedApplication) {
+                  updateApplicationStatus(selectedApplication.id, 'rejected');
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <XCircle className="h-4 w-4" />
+              Reject
+            </Button>
+            <Button
+              variant="accent"
+              onClick={() => {
+                if (selectedApplication) {
+                  updateApplicationStatus(selectedApplication.id, 'approved');
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <CheckCircle className="h-4 w-4" />
+              Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

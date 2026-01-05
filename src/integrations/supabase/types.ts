@@ -43,6 +43,7 @@ export type Database = {
       }
       grant_applications: {
         Row: {
+          admin_notes: string | null
           contact_email: string
           contact_name: string
           contact_phone: string | null
@@ -53,11 +54,14 @@ export type Database = {
           organization_type: string | null
           project_description: string
           requested_amount: number
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          admin_notes?: string | null
           contact_email: string
           contact_name: string
           contact_phone?: string | null
@@ -68,11 +72,14 @@ export type Database = {
           organization_type?: string | null
           project_description: string
           requested_amount: number
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          admin_notes?: string | null
           contact_email?: string
           contact_name?: string
           contact_phone?: string | null
@@ -83,6 +90,8 @@ export type Database = {
           organization_type?: string | null
           project_description?: string
           requested_amount?: number
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string | null
           updated_at?: string | null
           user_id?: string
@@ -119,11 +128,16 @@ export type Database = {
       profiles: {
         Row: {
           account_status: Database["public"]["Enums"]["account_status"] | null
+          business_industry: string | null
+          business_name: string | null
+          business_tax_id: string | null
+          business_type: string | null
           country_of_residence: string | null
           created_at: string | null
           date_of_birth: string | null
           email: string
           full_name: string | null
+          has_business: boolean | null
           id: string
           is_pep: boolean | null
           kyc_status: string | null
@@ -137,11 +151,16 @@ export type Database = {
         }
         Insert: {
           account_status?: Database["public"]["Enums"]["account_status"] | null
+          business_industry?: string | null
+          business_name?: string | null
+          business_tax_id?: string | null
+          business_type?: string | null
           country_of_residence?: string | null
           created_at?: string | null
           date_of_birth?: string | null
           email: string
           full_name?: string | null
+          has_business?: boolean | null
           id?: string
           is_pep?: boolean | null
           kyc_status?: string | null
@@ -155,11 +174,16 @@ export type Database = {
         }
         Update: {
           account_status?: Database["public"]["Enums"]["account_status"] | null
+          business_industry?: string | null
+          business_name?: string | null
+          business_tax_id?: string | null
+          business_type?: string | null
           country_of_residence?: string | null
           created_at?: string | null
           date_of_birth?: string | null
           email?: string
           full_name?: string | null
+          has_business?: boolean | null
           id?: string
           is_pep?: boolean | null
           kyc_status?: string | null
