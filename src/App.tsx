@@ -8,9 +8,10 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Trade from "./pages/Trade";
+import Crypto from "./pages/Crypto";
 import Dashboard from "./pages/Dashboard";
 import WhyFidelity from "./pages/WhyFidelity";
-import Transfers from "./pages/Transfers";
+import FundAccount from "./pages/FundAccount";
 import CustomerService from "./pages/CustomerService";
 import Profile from "./pages/Profile";
 import Grants from "./pages/Grants";
@@ -33,9 +34,10 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/trade" element={<Trade />} />
+            <Route path="/crypto" element={<Crypto />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/why-fidelity" element={<WhyFidelity />} />
-            <Route path="/transfers" element={<Transfers />} />
+            <Route path="/fund-account" element={<FundAccount />} />
             <Route path="/customer-service" element={<CustomerService />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/grants" element={<Grants />} />

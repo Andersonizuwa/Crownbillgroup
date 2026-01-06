@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, User, Settings, ArrowRightLeft, HelpCircle, LayoutDashboard, LogOut } from "lucide-react";
+import { Menu, X, ChevronDown, User, Settings, ArrowRightLeft, HelpCircle, LayoutDashboard, LogOut, Bitcoin, DollarSign } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,8 +25,9 @@ const Header = () => {
   ];
 
   const tradeSubItems = [
-    { label: "Trade", path: "/trade", icon: ArrowRightLeft },
-    { label: "Transfers", path: "/transfers", icon: ArrowRightLeft },
+    { label: "Trade Stocks", path: "/trade", icon: ArrowRightLeft },
+    { label: "Buy Crypto", path: "/crypto", icon: Bitcoin },
+    { label: "Fund Account", path: "/fund-account", icon: DollarSign },
     { label: "Customer Service", path: "/customer-service", icon: HelpCircle },
     { label: "Profile", path: "/profile", icon: User },
   ];

@@ -249,8 +249,8 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid sm:grid-cols-3 gap-4 mb-8">
-          <Link to="/transfers">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Link to="/fund-account">
             <Button variant="accent" className="w-full h-auto py-4">
               <div className="flex items-center gap-3">
                 <DollarSign className="h-5 w-5" />
@@ -258,11 +258,19 @@ const Dashboard = () => {
               </div>
             </Button>
           </Link>
-          <Link to="/investment">
+          <Link to="/trade">
             <Button variant="outline" className="w-full h-auto py-4">
               <div className="flex items-center gap-3">
                 <TrendingUp className="h-5 w-5" />
-                <span>Invest Now</span>
+                <span>Trade Stocks</span>
+              </div>
+            </Button>
+          </Link>
+          <Link to="/crypto">
+            <Button variant="outline" className="w-full h-auto py-4">
+              <div className="flex items-center gap-3">
+                <TrendingUp className="h-5 w-5" />
+                <span>Buy Crypto</span>
               </div>
             </Button>
           </Link>
