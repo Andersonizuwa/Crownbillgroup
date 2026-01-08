@@ -3,6 +3,7 @@ import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import LiveTraderInterests from "@/components/LiveTraderInterests";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -339,6 +340,9 @@ const Trade = () => {
             </div>
           </div>
         </div>
+
+        {/* Live Trader Activity */}
+        <LiveTraderInterests type="stock" />
 
         {/* Market Watch */}
         <div className="card-elevated-lg overflow-hidden">

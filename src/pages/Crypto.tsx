@@ -2,6 +2,7 @@ import { useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import LiveTraderInterests from "@/components/LiveTraderInterests";
 import { 
   Search, 
   TrendingUp,
@@ -251,6 +252,9 @@ const Crypto = () => {
             </div>
           </div>
         </div>
+
+        {/* Live Trader Activity */}
+        <LiveTraderInterests type="crypto" />
 
         {/* Crypto Market Table */}
         <div className="card-elevated-lg overflow-hidden">

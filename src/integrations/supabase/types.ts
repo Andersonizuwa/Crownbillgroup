@@ -41,6 +41,39 @@ export type Database = {
         }
         Relationships: []
       }
+      copy_trade_attempts: {
+        Row: {
+          action_type: string
+          asset_symbol: string
+          asset_type: string
+          created_at: string
+          id: string
+          profit_percentage: number | null
+          trader_name: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          asset_symbol: string
+          asset_type: string
+          created_at?: string
+          id?: string
+          profit_percentage?: number | null
+          trader_name: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          asset_symbol?: string
+          asset_type?: string
+          created_at?: string
+          id?: string
+          profit_percentage?: number | null
+          trader_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       grant_applications: {
         Row: {
           admin_notes: string | null
