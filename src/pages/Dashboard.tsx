@@ -15,7 +15,8 @@ import {
   ArrowRight,
   DollarSign,
   FileText,
-  RefreshCw
+  RefreshCw,
+  Mail
 } from "lucide-react";
 
 interface WalletData {
@@ -122,12 +123,32 @@ const Dashboard = () => {
       case 'approved':
         return 'Approved';
       case 'rejected':
-        return 'Rejected';
+        return 'Inactive';
       case 'under_review':
         return 'Under Review';
       default:
         return 'Pending';
     }
+  };
+
+  const handleReachOut = async (applicationId: string, grantType: string) => {
+    // Log the reach-out attempt for admin notification
+    if (user) {
+      try {
+        await supabase.from('activity_logs').insert({
+          user_id: user.id,
+          action: 'grant_reach_out',
+          details: { application_id: applicationId, grant_type: grantType }
+        });
+      } catch (error) {
+        console.error('Error logging reach out:', error);
+      }
+    }
+    
+    // Open email client
+    const subject = encodeURIComponent(`Grant Application Inquiry - ${grantType}`);
+    const body = encodeURIComponent(`Hello,\n\nI am reaching out regarding my grant application (ID: ${applicationId}).\n\nI would like to inquire about the status of my application and discuss any additional steps needed.\n\nThank you for your time.\n\nBest regards`);
+    window.location.href = `mailto:ranaeputerbaugh@yahoo.com?subject=${subject}&body=${body}`;
   };
 
   const getAccountStatusColor = (status: string) => {
@@ -309,6 +330,7 @@ const Dashboard = () => {
                     <th className="text-right px-6 py-4 text-sm font-semibold text-muted-foreground">Amount</th>
                     <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">Status</th>
                     <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">Date</th>
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -339,6 +361,18 @@ const Dashboard = () => {
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
                         {new Date(application.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        {application.status === 'rejected' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleReachOut(application.id, application.grant_type)}
+                          >
+                            <Mail className="h-4 w-4 mr-1" />
+                            Reach Out
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}

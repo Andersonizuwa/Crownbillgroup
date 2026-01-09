@@ -48,6 +48,8 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Copy,
+  Mail,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -81,6 +83,17 @@ interface UserWallet {
   currency: string;
 }
 
+interface CopyTradeAttempt {
+  id: string;
+  user_id: string;
+  trader_name: string;
+  asset_symbol: string;
+  asset_type: string;
+  action_type: string;
+  profit_percentage: number | null;
+  created_at: string;
+}
+
 const AdminDashboard = () => {
   const { user, isAdmin, signOut, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -88,6 +101,7 @@ const AdminDashboard = () => {
   
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [wallets, setWallets] = useState<UserWallet[]>([]);
+  const [copyTradeAttempts, setCopyTradeAttempts] = useState<CopyTradeAttempt[]>([]);
   const [activeTab, setActiveTab] = useState("users");
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [isEditWalletOpen, setIsEditWalletOpen] = useState(false);
@@ -108,6 +122,7 @@ const AdminDashboard = () => {
     if (isAdmin) {
       fetchUsers();
       fetchWallets();
+      fetchCopyTradeAttempts();
     }
   }, [isAdmin]);
 
@@ -143,6 +158,36 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error fetching wallets:', error);
     }
+  };
+
+  const fetchCopyTradeAttempts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('copy_trade_attempts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setCopyTradeAttempts(data || []);
+    } catch (error) {
+      console.error('Error fetching copy trade attempts:', error);
+    }
+  };
+
+  const getUserEmail = (userId: string) => {
+    const user = users.find(u => u.user_id === userId);
+    return user?.email || 'Unknown';
+  };
+
+  const getUserName = (userId: string) => {
+    const user = users.find(u => u.user_id === userId);
+    return user?.full_name || 'Unknown';
+  };
+
+  const sendFollowUpEmail = (email: string, traderName: string, assetSymbol: string) => {
+    const subject = encodeURIComponent(`Follow-up: Copy Trade Interest - ${traderName}`);
+    const body = encodeURIComponent(`Hello,\n\nWe noticed you were interested in copying the trade for ${assetSymbol} by ${traderName}.\n\nWe would like to discuss this opportunity with you.\n\nBest regards,\nFidelity Team`);
+    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
   };
 
   const createUser = async () => {
@@ -349,6 +394,14 @@ const AdminDashboard = () => {
               <Activity className="h-4 w-4 mr-2" />
               Activity Logs
             </Button>
+            <Button
+              variant={activeTab === "copyTrades" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("copyTrades")}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy Trade Attempts
+            </Button>
           </nav>
         </aside>
 
@@ -523,6 +576,80 @@ const AdminDashboard = () => {
 
           {activeTab === "activity" && (
             <ActivityLogsTab users={users} />
+          )}
+
+          {activeTab === "copyTrades" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">Copy Trade Attempts</h2>
+                <p className="text-muted-foreground">Users who tried to copy trades or apply strategies</p>
+              </div>
+
+              <div className="card-elevated">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>User Email</TableHead>
+                      <TableHead>User Name</TableHead>
+                      <TableHead>Trader</TableHead>
+                      <TableHead>Asset</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Profit %</TableHead>
+                      <TableHead>Follow Up</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {copyTradeAttempts.map((attempt) => (
+                      <TableRow key={attempt.id}>
+                        <TableCell>{new Date(attempt.created_at).toLocaleString()}</TableCell>
+                        <TableCell className="font-medium">{getUserEmail(attempt.user_id)}</TableCell>
+                        <TableCell>{getUserName(attempt.user_id)}</TableCell>
+                        <TableCell>{attempt.trader_name}</TableCell>
+                        <TableCell>{attempt.asset_symbol}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{attempt.asset_type}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={attempt.action_type === 'copy_trade' ? 'default' : 'outline'}>
+                            {attempt.action_type === 'copy_trade' ? 'Copy Trade' : 'Analyze'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {attempt.profit_percentage !== null ? (
+                            <span className={attempt.profit_percentage >= 0 ? 'text-accent' : 'text-destructive'}>
+                              {attempt.profit_percentage >= 0 ? '+' : ''}{attempt.profit_percentage}%
+                            </span>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => sendFollowUpEmail(
+                              getUserEmail(attempt.user_id),
+                              attempt.trader_name,
+                              attempt.asset_symbol
+                            )}
+                          >
+                            <Mail className="h-4 w-4 mr-1" />
+                            Email
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {copyTradeAttempts.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          No copy trade attempts found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           )}
         </main>
       </div>
