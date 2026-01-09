@@ -188,15 +188,23 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* Account Status Banner - Shows Inactive if any grant is rejected */}
+        {/* Account Status Banner - Inactive until a grant is approved */}
         {(() => {
-          const hasRejectedGrant = grantApplications.some(g => g.status === 'rejected');
-          const hasApprovedGrant = grantApplications.some(g => g.status === 'approved');
-          const effectiveStatus = hasRejectedGrant ? 'inactive' : hasApprovedGrant ? 'active' : (profile?.account_status || 'pending');
-          
+          const hasAnyGrant = grantApplications.length > 0;
+          const hasApprovedGrant = grantApplications.some((g) => g.status === 'approved');
+          const needsGrantDecision = hasAnyGrant && !hasApprovedGrant;
+
+          const effectiveStatus = needsGrantDecision
+            ? 'inactive'
+            : hasApprovedGrant
+              ? 'active'
+              : (profile?.account_status || 'pending');
+
+          const reachOutGrant = grantApplications.find((g) => g.status !== 'approved');
+
           return (
             <div className={`rounded-lg p-4 mb-8 border ${getAccountStatusColor(effectiveStatus)}`}>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   {effectiveStatus === 'active' ? (
                     <CheckCircle2 className="h-5 w-5" />
@@ -210,24 +218,20 @@ const Dashboard = () => {
                       Account Status: {effectiveStatus === 'inactive' ? 'Inactive' : effectiveStatus === 'active' ? 'Active' : 'Pending'}
                     </p>
                     <p className="text-sm opacity-80">
-                      {effectiveStatus === 'active' 
-                        ? 'Your account is fully verified and active.' 
+                      {effectiveStatus === 'active'
+                        ? 'Your account is fully verified and active.'
                         : effectiveStatus === 'inactive'
-                        ? 'Your grant application was not approved. Please reach out for assistance.'
-                        : 'Your account is pending verification. We will review it shortly.'}
+                          ? 'Your grant has not been granted yet. Reach out for assistance.'
+                          : 'Your account is pending verification. We will review it shortly.'}
                     </p>
                   </div>
                 </div>
-                {effectiveStatus === 'inactive' && (
+
+                {needsGrantDecision && reachOutGrant && (
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      const rejectedGrant = grantApplications.find(g => g.status === 'rejected');
-                      if (rejectedGrant) {
-                        handleReachOut(rejectedGrant.id, rejectedGrant.grant_type);
-                      }
-                    }}
+                    onClick={() => handleReachOut(reachOutGrant.id, reachOutGrant.grant_type)}
                   >
                     <Mail className="h-4 w-4 mr-1" />
                     Reach Out
@@ -388,7 +392,7 @@ const Dashboard = () => {
                         {new Date(application.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4">
-                        {application.status === 'rejected' && (
+                        {application.status !== 'approved' && (
                           <Button
                             variant="outline"
                             size="sm"
