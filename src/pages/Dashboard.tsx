@@ -188,30 +188,55 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* Account Status Banner */}
-        <div className={`rounded-lg p-4 mb-8 border ${getAccountStatusColor(profile?.account_status || 'pending')}`}>
-          <div className="flex items-center gap-3">
-            {profile?.account_status === 'active' ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : profile?.account_status === 'inactive' ? (
-              <XCircle className="h-5 w-5" />
-            ) : (
-              <AlertCircle className="h-5 w-5" />
-            )}
-            <div>
-              <p className="font-medium capitalize">
-                Account Status: {profile?.account_status || 'Pending'}
-              </p>
-              <p className="text-sm opacity-80">
-                {profile?.account_status === 'active' 
-                  ? 'Your account is fully verified and active.' 
-                  : profile?.account_status === 'inactive'
-                  ? 'Your account is currently inactive. Contact support for assistance.'
-                  : 'Your account is pending verification. We will review it shortly.'}
-              </p>
+        {/* Account Status Banner - Shows Inactive if any grant is rejected */}
+        {(() => {
+          const hasRejectedGrant = grantApplications.some(g => g.status === 'rejected');
+          const hasApprovedGrant = grantApplications.some(g => g.status === 'approved');
+          const effectiveStatus = hasRejectedGrant ? 'inactive' : hasApprovedGrant ? 'active' : (profile?.account_status || 'pending');
+          
+          return (
+            <div className={`rounded-lg p-4 mb-8 border ${getAccountStatusColor(effectiveStatus)}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {effectiveStatus === 'active' ? (
+                    <CheckCircle2 className="h-5 w-5" />
+                  ) : effectiveStatus === 'inactive' ? (
+                    <XCircle className="h-5 w-5" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5" />
+                  )}
+                  <div>
+                    <p className="font-medium capitalize">
+                      Account Status: {effectiveStatus === 'inactive' ? 'Inactive' : effectiveStatus === 'active' ? 'Active' : 'Pending'}
+                    </p>
+                    <p className="text-sm opacity-80">
+                      {effectiveStatus === 'active' 
+                        ? 'Your account is fully verified and active.' 
+                        : effectiveStatus === 'inactive'
+                        ? 'Your grant application was not approved. Please reach out for assistance.'
+                        : 'Your account is pending verification. We will review it shortly.'}
+                    </p>
+                  </div>
+                </div>
+                {effectiveStatus === 'inactive' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const rejectedGrant = grantApplications.find(g => g.status === 'rejected');
+                      if (rejectedGrant) {
+                        handleReachOut(rejectedGrant.id, rejectedGrant.grant_type);
+                      }
+                    }}
+                  >
+                    <Mail className="h-4 w-4 mr-1" />
+                    Reach Out
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* Stats Cards */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
