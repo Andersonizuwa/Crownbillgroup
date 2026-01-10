@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,8 @@ import {
   DollarSign,
   BarChart3,
   Wallet,
-  Clock
+  Clock,
+  AlertCircle
 } from "lucide-react";
 import {
   Dialog,
@@ -23,13 +25,42 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const Crypto = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCrypto, setSelectedCrypto] = useState<typeof cryptoData[0] | null>(null);
   const [buyDialogOpen, setBuyDialogOpen] = useState(false);
+  const [fundingDialogOpen, setFundingDialogOpen] = useState(false);
   const [buyAmount, setBuyAmount] = useState("");
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [isLoadingWallet, setIsLoadingWallet] = useState(true);
 
+  // Fetch wallet balance
+  useEffect(() => {
+    const fetchWallet = async () => {
+      if (!user) {
+        setIsLoadingWallet(false);
+        return;
+      }
+      
+      const { data } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (data) {
+        setWalletBalance(data.balance || 0);
+      }
+      setIsLoadingWallet(false);
+    };
+    
+    fetchWallet();
+  }, [user]);
   const cryptoData = [
     { 
       symbol: "BTC", 
@@ -167,6 +198,16 @@ const Crypto = () => {
   );
 
   const handleBuy = (crypto: typeof cryptoData[0]) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    if (walletBalance <= 0) {
+      setFundingDialogOpen(true);
+      return;
+    }
+    
     setSelectedCrypto(crypto);
     setBuyDialogOpen(true);
     setBuyAmount("");
@@ -229,7 +270,7 @@ const Crypto = () => {
               <span className="text-sm">Available Balance</span>
             </div>
             <p className="text-2xl font-bold text-foreground">
-              $12,345.00
+              ${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
         </div>
@@ -393,6 +434,36 @@ const Crypto = () => {
             <p className="text-xs text-center text-muted-foreground">
               Trading fee: 0.1% • Instant execution
             </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fund Account Required Dialog */}
+      <Dialog open={fundingDialogOpen} onOpenChange={setFundingDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-warning" />
+              Fund Your Account
+            </DialogTitle>
+            <DialogDescription>
+              You need to add funds to your account before you can buy cryptocurrency.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="bg-muted/50 rounded-lg p-4 text-center">
+              <Wallet className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-lg font-semibold text-foreground">Current Balance: $0.00</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Add funds to unlock trading features
+              </p>
+            </div>
+            <Link to="/fund-account" className="block">
+              <Button variant="accent" className="w-full">
+                <DollarSign className="mr-2 h-4 w-4" />
+                Fund Account Now
+              </Button>
+            </Link>
           </div>
         </DialogContent>
       </Dialog>

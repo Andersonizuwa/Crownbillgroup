@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +16,9 @@ import {
   DollarSign,
   BarChart3,
   RefreshCw,
-  Activity
+  Activity,
+  Wallet,
+  AlertCircle
 } from "lucide-react";
 import {
   Dialog,
@@ -30,14 +33,44 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const Trade = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStock, setSelectedStock] = useState<typeof marketData[0] | null>(null);
   const [tradeDialogOpen, setTradeDialogOpen] = useState(false);
+  const [fundingDialogOpen, setFundingDialogOpen] = useState(false);
   const [tradeType, setTradeType] = useState<"buy" | "sell">("buy");
   const [tradeAmount, setTradeAmount] = useState("");
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [isLoadingWallet, setIsLoadingWallet] = useState(true);
+
+  // Fetch wallet balance
+  useEffect(() => {
+    const fetchWallet = async () => {
+      if (!user) {
+        setIsLoadingWallet(false);
+        return;
+      }
+      
+      const { data } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (data) {
+        setWalletBalance(data.balance || 0);
+      }
+      setIsLoadingWallet(false);
+    };
+    
+    fetchWallet();
+  }, [user]);
 
   // Simulate real-time updates
   useEffect(() => {
@@ -245,6 +278,16 @@ const Trade = () => {
   );
 
   const handleTrade = (stock: typeof marketData[0], type: "buy" | "sell") => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    if (walletBalance <= 0) {
+      setFundingDialogOpen(true);
+      return;
+    }
+    
     setSelectedStock(stock);
     setTradeType(type);
     setTradeDialogOpen(true);
@@ -542,6 +585,36 @@ const Trade = () => {
           <p className="text-xs text-center text-muted-foreground">
             Commission-free trading • Market orders execute instantly
           </p>
+        </DialogContent>
+      </Dialog>
+
+      {/* Fund Account Required Dialog */}
+      <Dialog open={fundingDialogOpen} onOpenChange={setFundingDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-warning" />
+              Fund Your Account
+            </DialogTitle>
+            <DialogDescription>
+              You need to add funds to your account before you can start trading.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="bg-muted/50 rounded-lg p-4 text-center">
+              <Wallet className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-lg font-semibold text-foreground">Current Balance: $0.00</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Add funds to unlock trading features
+              </p>
+            </div>
+            <Link to="/fund-account" className="block">
+              <Button variant="accent" className="w-full">
+                <DollarSign className="mr-2 h-4 w-4" />
+                Fund Account Now
+              </Button>
+            </Link>
+          </div>
         </DialogContent>
       </Dialog>
     </Layout>

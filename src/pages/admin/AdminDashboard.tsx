@@ -402,6 +402,14 @@ const AdminDashboard = () => {
               <Copy className="h-4 w-4 mr-2" />
               Copy Trade Attempts
             </Button>
+            <Button
+              variant={activeTab === "deposits" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("deposits")}
+            >
+              <DollarSign className="h-4 w-4 mr-2" />
+              Deposits
+            </Button>
           </nav>
         </aside>
 
@@ -572,6 +580,10 @@ const AdminDashboard = () => {
 
           {activeTab === "grants" && (
             <GrantApplicationsTab users={users} />
+          )}
+
+          {activeTab === "deposits" && (
+            <DepositsTab users={users} onWalletUpdate={fetchWallets} />
           )}
 
           {activeTab === "activity" && (
@@ -1498,6 +1510,114 @@ const ActivityLogsTab = ({ users }: { users: UserProfile[] }) => {
                     No activity logs found
                   </TableCell>
                 </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Deposits Tab Component
+const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWalletUpdate: () => void }) => {
+  const { toast } = useToast();
+  const [deposits, setDeposits] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("pending");
+
+  const getUserEmail = (userId: string) => {
+    const user = users.find(u => u.user_id === userId);
+    return user?.email || 'Unknown';
+  };
+
+  const fetchDeposits = async () => {
+    setLoading(true);
+    let query = supabase.from('deposits').select('*').order('created_at', { ascending: false });
+    if (statusFilter !== "all") query = query.eq('status', statusFilter);
+    const { data } = await query;
+    setDeposits(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchDeposits(); }, [statusFilter]);
+
+  const updateDeposit = async (depositId: string, userId: string, amount: number, newStatus: 'approved' | 'rejected') => {
+    try {
+      await supabase.from('deposits').update({ status: newStatus, reviewed_at: new Date().toISOString() }).eq('id', depositId);
+      
+      if (newStatus === 'approved') {
+        const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', userId).single();
+        const newBalance = (wallet?.balance || 0) + amount;
+        await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', userId);
+        onWalletUpdate();
+      }
+      
+      toast({ title: "Success", description: `Deposit ${newStatus}` });
+      fetchDeposits();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Deposit Management</h2>
+          <p className="text-muted-foreground">Approve or reject user deposits</p>
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="card-elevated">
+        {loading ? <div className="p-8 text-center">Loading...</div> : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead>Method</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {deposits.map((d) => (
+                <TableRow key={d.id}>
+                  <TableCell>{new Date(d.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{getUserEmail(d.user_id)}</TableCell>
+                  <TableCell className="capitalize">{d.payment_method} {d.crypto_type ? `(${d.crypto_type.toUpperCase()})` : ''}</TableCell>
+                  <TableCell className="font-semibold">${d.amount.toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Badge variant={d.status === 'approved' ? 'default' : d.status === 'rejected' ? 'destructive' : 'secondary'}>
+                      {d.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {d.status === 'pending' && (
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="accent" onClick={() => updateDeposit(d.id, d.user_id, d.amount, 'approved')}>
+                          <CheckCircle className="h-4 w-4 mr-1" />Approve
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => updateDeposit(d.id, d.user_id, d.amount, 'rejected')}>
+                          <XCircle className="h-4 w-4 mr-1" />Reject
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {deposits.length === 0 && (
+                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No deposits found</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
