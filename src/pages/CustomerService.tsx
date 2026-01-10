@@ -26,10 +26,11 @@ const CustomerService = () => {
   const supportOptions = [
     {
       icon: Phone,
-      title: "Call Us",
-      description: "Speak with a representative",
-      action: "1-800-FIDELITY",
+      title: "WhatsApp",
+      description: "Chat with us on WhatsApp",
+      action: "+1 (646) 233-7202",
       available: "24/7",
+      link: "https://wa.me/16462337202",
     },
     {
       icon: MessageCircle,
@@ -37,13 +38,15 @@ const CustomerService = () => {
       description: "Chat with support online",
       action: "Start Chat",
       available: "24/7",
+      link: "https://wa.me/16462337202",
     },
     {
       icon: Mail,
       title: "Email Us",
       description: "Send us a message",
-      action: "support@fidelity.com",
+      action: "ranaeputerbaugh@yahoo.com",
       available: "Response within 24hrs",
+      link: "mailto:ranaeputerbaugh@yahoo.com",
     },
   ];
 
@@ -117,7 +120,13 @@ const CustomerService = () => {
         {/* Support Options */}
         <div className="grid md:grid-cols-3 gap-6 mb-12">
           {supportOptions.map((option) => (
-            <div key={option.title} className="card-elevated-lg p-6 text-center hover:shadow-xl transition-all duration-300">
+            <a 
+              key={option.title} 
+              href={option.link}
+              target={option.link.startsWith('http') ? '_blank' : undefined}
+              rel={option.link.startsWith('http') ? 'noopener noreferrer' : undefined}
+              className="card-elevated-lg p-6 text-center hover:shadow-xl transition-all duration-300 block"
+            >
               <div className="w-14 h-14 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
                 <option.icon className="h-7 w-7 text-accent" />
               </div>
@@ -128,7 +137,7 @@ const CustomerService = () => {
                 <Clock className="h-3 w-3" />
                 {option.available}
               </p>
-            </div>
+            </a>
           ))}
         </div>
 
@@ -176,10 +185,12 @@ const CustomerService = () => {
             Still have questions? We're here to help.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button variant="accent" size="lg">
-              <MessageCircle className="mr-2 h-4 w-4" />
-              Start Live Chat
-            </Button>
+            <a href="https://wa.me/16462337202" target="_blank" rel="noopener noreferrer">
+              <Button variant="accent" size="lg">
+                <MessageCircle className="mr-2 h-4 w-4" />
+                Chat on WhatsApp
+              </Button>
+            </a>
             <Link to="/register">
               <Button variant="outline" size="lg">
                 Open an Account

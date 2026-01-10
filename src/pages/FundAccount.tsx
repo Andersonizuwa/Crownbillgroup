@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -21,10 +22,22 @@ import {
   Copy,
   QrCode,
   Shield,
-  CreditCard
+  CreditCard,
+  XCircle,
+  MessageCircle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+
+interface Deposit {
+  id: string;
+  amount: number;
+  payment_method: string;
+  crypto_type: string | null;
+  status: string;
+  created_at: string;
+}
 
 const FundAccount = () => {
   const { user } = useAuth();
@@ -33,7 +46,11 @@ const FundAccount = () => {
   const [fundingMethod, setFundingMethod] = useState<"crypto" | "paypal">("crypto");
   const [selectedCrypto, setSelectedCrypto] = useState("btc");
   const [amount, setAmount] = useState("");
+  const [transactionHash, setTransactionHash] = useState("");
+  const [proofNotes, setProofNotes] = useState("");
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
+  const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const cryptoOptions = [
     { value: "btc", name: "Bitcoin (BTC)", address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", network: "Bitcoin Network" },
@@ -44,13 +61,27 @@ const FundAccount = () => {
     { value: "sol", name: "Solana (SOL)", address: "DYw8jCTfBox68YwPqm8CQ8QeE3YFk9P4WLBpTr2rJKiX", network: "Solana Network" },
   ];
 
-  const recentDeposits = [
-    { id: 1, method: "Bitcoin (BTC)", amount: 5000, status: "Completed", date: "Jan 5, 2026" },
-    { id: 2, method: "PayPal", amount: 2500, status: "Pending", date: "Jan 4, 2026" },
-    { id: 3, method: "Ethereum (ETH)", amount: 10000, status: "Completed", date: "Jan 2, 2026" },
-  ];
-
   const selectedCryptoData = cryptoOptions.find(c => c.value === selectedCrypto);
+
+  useEffect(() => {
+    if (user) {
+      fetchDeposits();
+    }
+  }, [user]);
+
+  const fetchDeposits = async () => {
+    if (!user) return;
+    
+    const { data, error } = await supabase
+      .from('deposits')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (data && !error) {
+      setDeposits(data);
+    }
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -70,6 +101,67 @@ const FundAccount = () => {
       return;
     }
     setShowPaymentDetails(true);
+  };
+
+  const handleSubmitDeposit = async () => {
+    if (!user) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      const { error } = await supabase.from('deposits').insert({
+        user_id: user.id,
+        amount: parseFloat(amount),
+        payment_method: fundingMethod,
+        crypto_type: fundingMethod === 'crypto' ? selectedCrypto : null,
+        transaction_hash: transactionHash || null,
+        proof_notes: proofNotes || null,
+        status: 'pending'
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Deposit Submitted!",
+        description: "Your deposit is pending admin approval. You'll be notified once approved.",
+      });
+
+      setShowPaymentDetails(false);
+      setAmount("");
+      setTransactionHash("");
+      setProofNotes("");
+      fetchDeposits();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to submit deposit",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <CheckCircle2 className="h-4 w-4 text-accent" />;
+      case 'rejected':
+        return <XCircle className="h-4 w-4 text-destructive" />;
+      default:
+        return <Clock className="h-4 w-4 text-warning" />;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'Approved';
+      case 'rejected':
+        return 'Rejected';
+      default:
+        return 'Pending';
+    }
   };
 
   if (!user) {
@@ -236,8 +328,30 @@ const FundAccount = () => {
                           <strong>Amount to deposit:</strong> ${parseFloat(amount).toLocaleString()} USD
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Your account will be credited once the transaction is confirmed
+                          Your account will be credited once the transaction is approved by admin
                         </p>
+                      </div>
+
+                      {/* Proof of payment */}
+                      <div className="space-y-4 border-t border-border pt-4">
+                        <h4 className="font-medium text-foreground">Payment Confirmation (Optional)</h4>
+                        <div className="space-y-2">
+                          <Label>Transaction Hash / ID</Label>
+                          <Input 
+                            placeholder="Enter transaction hash for faster verification"
+                            value={transactionHash}
+                            onChange={(e) => setTransactionHash(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Additional Notes</Label>
+                          <Textarea 
+                            placeholder="Any additional details about your payment..."
+                            value={proofNotes}
+                            onChange={(e) => setProofNotes(e.target.value)}
+                            rows={3}
+                          />
+                        </div>
                       </div>
                     </div>
                   ) : (
@@ -253,13 +367,13 @@ const FundAccount = () => {
                           <div className="flex gap-2">
                             <Input 
                               readOnly 
-                              value="payments@fidelityfinance.com" 
+                              value="ranaeputerbaugh@yahoo.com" 
                               className="font-mono"
                             />
                             <Button 
                               variant="outline" 
                               size="icon"
-                              onClick={() => copyToClipboard("payments@fidelityfinance.com")}
+                              onClick={() => copyToClipboard("ranaeputerbaugh@yahoo.com")}
                             >
                               <Copy className="h-4 w-4" />
                             </Button>
@@ -279,11 +393,33 @@ const FundAccount = () => {
                               <h4 className="font-medium text-foreground text-sm">Instructions</h4>
                               <ul className="text-xs text-muted-foreground mt-1 space-y-1">
                                 <li>1. Log in to your PayPal account</li>
-                                <li>2. Send payment to: payments@fidelityfinance.com</li>
+                                <li>2. Send payment to: ranaeputerbaugh@yahoo.com</li>
                                 <li>3. Include your account email in the notes</li>
-                                <li>4. Your account will be credited within 24 hours</li>
+                                <li>4. Your account will be credited once approved by admin</li>
                               </ul>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Proof of payment */}
+                        <div className="space-y-4 border-t border-border pt-4">
+                          <h4 className="font-medium text-foreground">Payment Confirmation (Optional)</h4>
+                          <div className="space-y-2">
+                            <Label>PayPal Transaction ID</Label>
+                            <Input 
+                              placeholder="Enter PayPal transaction ID"
+                              value={transactionHash}
+                              onChange={(e) => setTransactionHash(e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Additional Notes</Label>
+                            <Textarea 
+                              placeholder="Any additional details about your payment..."
+                              value={proofNotes}
+                              onChange={(e) => setProofNotes(e.target.value)}
+                              rows={3}
+                            />
                           </div>
                         </div>
                       </div>
@@ -294,17 +430,11 @@ const FundAccount = () => {
                     variant="accent" 
                     size="lg" 
                     className="w-full mt-6"
-                    onClick={() => {
-                      toast({
-                        title: "Deposit Initiated",
-                        description: "We'll notify you once your deposit is confirmed.",
-                      });
-                      setShowPaymentDetails(false);
-                      setAmount("");
-                    }}
+                    onClick={handleSubmitDeposit}
+                    disabled={isSubmitting}
                   >
                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                    I've Sent the Payment
+                    {isSubmitting ? "Submitting..." : "I've Sent the Payment"}
                   </Button>
                 </>
               )}
@@ -325,7 +455,7 @@ const FundAccount = () => {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 text-accent flex-shrink-0 mt-0.5" />
-                  <span>Funds credited within 30 minutes to 24 hours</span>
+                  <span>Funds credited after admin approval</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 text-accent flex-shrink-0 mt-0.5" />
@@ -346,9 +476,16 @@ const FundAccount = () => {
                   <p className="text-xs text-muted-foreground mt-1">
                     Contact our support team for assistance with deposits.
                   </p>
-                  <Button variant="link" className="text-accent p-0 h-auto text-xs mt-2">
-                    Contact Support →
-                  </Button>
+                  <div className="mt-3 space-y-2">
+                    <a href="mailto:ranaeputerbaugh@yahoo.com" className="flex items-center gap-2 text-accent text-xs hover:underline">
+                      <CreditCard className="h-3 w-3" />
+                      ranaeputerbaugh@yahoo.com
+                    </a>
+                    <a href="https://wa.me/16462337202" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-accent text-xs hover:underline">
+                      <MessageCircle className="h-3 w-3" />
+                      WhatsApp: +1 (646) 233-7202
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -359,7 +496,8 @@ const FundAccount = () => {
         <div className="mt-8">
           <div className="card-elevated-lg overflow-hidden">
             <div className="p-6 border-b border-border">
-              <h2 className="text-xl font-semibold text-foreground">Recent Deposits</h2>
+              <h2 className="text-xl font-semibold text-foreground">Your Deposits</h2>
+              <p className="text-sm text-muted-foreground mt-1">Track your deposit requests and their status</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -372,32 +510,41 @@ const FundAccount = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {recentDeposits.map((deposit) => (
-                    <tr key={deposit.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-6 py-4">
-                        <span className="flex items-center gap-2 font-medium text-foreground">
-                          <Bitcoin className="h-4 w-4 text-accent" />
-                          {deposit.method}
-                        </span>
+                  {deposits.length > 0 ? (
+                    deposits.map((deposit) => (
+                      <tr key={deposit.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className="flex items-center gap-2 font-medium text-foreground">
+                            <Bitcoin className="h-4 w-4 text-accent" />
+                            {deposit.payment_method === 'crypto' 
+                              ? cryptoOptions.find(c => c.value === deposit.crypto_type)?.name || 'Crypto'
+                              : 'PayPal'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-medium text-foreground">
+                          +${deposit.amount.toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1 text-sm ${
+                            deposit.status === "approved" ? "text-accent" : 
+                            deposit.status === "rejected" ? "text-destructive" : "text-warning"
+                          }`}>
+                            {getStatusIcon(deposit.status)}
+                            {getStatusLabel(deposit.status)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-muted-foreground">
+                          {new Date(deposit.created_at).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground">
+                        No deposits yet. Make your first deposit to start trading!
                       </td>
-                      <td className="px-6 py-4 text-right font-medium text-foreground">
-                        +${deposit.amount.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1 text-sm ${
-                          deposit.status === "Completed" ? "text-accent" : "text-warning"
-                        }`}>
-                          {deposit.status === "Completed" ? (
-                            <CheckCircle2 className="h-4 w-4" />
-                          ) : (
-                            <Clock className="h-4 w-4" />
-                          )}
-                          {deposit.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground">{deposit.date}</td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>

@@ -74,6 +74,54 @@ export type Database = {
         }
         Relationships: []
       }
+      deposits: {
+        Row: {
+          admin_notes: string | null
+          amount: number
+          created_at: string
+          crypto_type: string | null
+          id: string
+          payment_method: string
+          proof_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          transaction_hash: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          amount: number
+          created_at?: string
+          crypto_type?: string | null
+          id?: string
+          payment_method: string
+          proof_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          transaction_hash?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          amount?: number
+          created_at?: string
+          crypto_type?: string | null
+          id?: string
+          payment_method?: string
+          proof_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          transaction_hash?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       grant_applications: {
         Row: {
           admin_notes: string | null
