@@ -16,7 +16,8 @@ import {
   DollarSign,
   FileText,
   RefreshCw,
-  Mail
+  Mail,
+  ArrowDownToLine
 } from "lucide-react";
 
 interface WalletData {
@@ -299,12 +300,20 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <Link to="/fund-account">
             <Button variant="accent" className="w-full h-auto py-4">
               <div className="flex items-center gap-3">
                 <DollarSign className="h-5 w-5" />
                 <span>Fund Account</span>
+              </div>
+            </Button>
+          </Link>
+          <Link to="/withdraw">
+            <Button variant="outline" className="w-full h-auto py-4">
+              <div className="flex items-center gap-3">
+                <ArrowDownToLine className="h-5 w-5" />
+                <span>Withdraw</span>
               </div>
             </Button>
           </Link>
