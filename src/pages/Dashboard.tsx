@@ -17,7 +17,8 @@ import {
   FileText,
   RefreshCw,
   Mail,
-  ArrowDownToLine
+  ArrowDownToLine,
+  History
 } from "lucide-react";
 
 interface WalletData {
@@ -300,7 +301,7 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
           <Link to="/fund-account">
             <Button variant="accent" className="w-full h-auto py-4">
               <div className="flex items-center gap-3">
@@ -314,6 +315,14 @@ const Dashboard = () => {
               <div className="flex items-center gap-3">
                 <ArrowDownToLine className="h-5 w-5" />
                 <span>Withdraw</span>
+              </div>
+            </Button>
+          </Link>
+          <Link to="/transactions">
+            <Button variant="outline" className="w-full h-auto py-4">
+              <div className="flex items-center gap-3">
+                <History className="h-5 w-5" />
+                <span>History</span>
               </div>
             </Button>
           </Link>
