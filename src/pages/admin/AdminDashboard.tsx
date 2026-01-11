@@ -50,6 +50,7 @@ import {
   Clock,
   Copy,
   Mail,
+  ArrowDownToLine,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -410,6 +411,14 @@ const AdminDashboard = () => {
               <DollarSign className="h-4 w-4 mr-2" />
               Deposits
             </Button>
+            <Button
+              variant={activeTab === "withdrawals" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("withdrawals")}
+            >
+              <ArrowDownToLine className="h-4 w-4 mr-2" />
+              Withdrawals
+            </Button>
           </nav>
         </aside>
 
@@ -584,6 +593,10 @@ const AdminDashboard = () => {
 
           {activeTab === "deposits" && (
             <DepositsTab users={users} onWalletUpdate={fetchWallets} />
+          )}
+
+          {activeTab === "withdrawals" && (
+            <WithdrawalsTab users={users} onWalletUpdate={fetchWallets} />
           )}
 
           {activeTab === "activity" && (
@@ -1618,6 +1631,129 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
               ))}
               {deposits.length === 0 && (
                 <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No deposits found</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Withdrawals Tab Component
+const WithdrawalsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWalletUpdate: () => void }) => {
+  const { toast } = useToast();
+  const [withdrawals, setWithdrawals] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("pending");
+
+  const getUserEmail = (userId: string) => {
+    const user = users.find(u => u.user_id === userId);
+    return user?.email || 'Unknown';
+  };
+
+  const fetchWithdrawals = async () => {
+    setLoading(true);
+    let query = supabase.from('withdrawals').select('*').order('created_at', { ascending: false });
+    if (statusFilter !== "all") query = query.eq('status', statusFilter);
+    const { data } = await query;
+    setWithdrawals(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchWithdrawals(); }, [statusFilter]);
+
+  const updateWithdrawal = async (withdrawalId: string, userId: string, amount: number, newStatus: 'approved' | 'rejected') => {
+    try {
+      await supabase.from('withdrawals').update({ status: newStatus, reviewed_at: new Date().toISOString() }).eq('id', withdrawalId);
+      
+      if (newStatus === 'approved') {
+        // Deduct from wallet balance
+        const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', userId).single();
+        const newBalance = Math.max(0, (wallet?.balance || 0) - amount);
+        await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', userId);
+        
+        // Log the transaction
+        await supabase.from('transactions').insert({
+          user_id: userId,
+          type: 'withdrawal',
+          amount: amount,
+          description: 'Withdrawal approved',
+          status: 'completed',
+        });
+        
+        onWalletUpdate();
+      }
+      
+      toast({ title: "Success", description: `Withdrawal ${newStatus}` });
+      fetchWithdrawals();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Withdrawal Management</h2>
+          <p className="text-muted-foreground">Approve or reject user withdrawal requests</p>
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="card-elevated">
+        {loading ? <div className="p-8 text-center">Loading...</div> : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead>Method</TableHead>
+                <TableHead>Details</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {withdrawals.map((w) => (
+                <TableRow key={w.id}>
+                  <TableCell>{new Date(w.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell>{getUserEmail(w.user_id)}</TableCell>
+                  <TableCell className="capitalize">{w.withdrawal_method.replace('_', ' ')}</TableCell>
+                  <TableCell className="max-w-xs truncate">
+                    {w.wallet_address || w.bank_details || '-'}
+                  </TableCell>
+                  <TableCell className="font-semibold">${w.amount.toLocaleString()}</TableCell>
+                  <TableCell>
+                    <Badge variant={w.status === 'approved' ? 'default' : w.status === 'rejected' ? 'destructive' : 'secondary'}>
+                      {w.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {w.status === 'pending' && (
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="accent" onClick={() => updateWithdrawal(w.id, w.user_id, w.amount, 'approved')}>
+                          <CheckCircle className="h-4 w-4 mr-1" />Approve
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => updateWithdrawal(w.id, w.user_id, w.amount, 'rejected')}>
+                          <XCircle className="h-4 w-4 mr-1" />Reject
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {withdrawals.length === 0 && (
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No withdrawals found</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

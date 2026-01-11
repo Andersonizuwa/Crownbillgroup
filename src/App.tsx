@@ -12,6 +12,7 @@ import Crypto from "./pages/Crypto";
 import Dashboard from "./pages/Dashboard";
 import WhyFidelity from "./pages/WhyFidelity";
 import FundAccount from "./pages/FundAccount";
+import Withdraw from "./pages/Withdraw";
 import CustomerService from "./pages/CustomerService";
 import Profile from "./pages/Profile";
 import Grants from "./pages/Grants";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/why-fidelity" element={<WhyFidelity />} />
             <Route path="/fund-account" element={<FundAccount />} />
+            <Route path="/withdraw" element={<Withdraw />} />
             <Route path="/customer-service" element={<CustomerService />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/grants" element={<Grants />} />
