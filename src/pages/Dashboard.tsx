@@ -18,7 +18,8 @@ import {
   RefreshCw,
   Mail,
   ArrowDownToLine,
-  History
+  History,
+  PieChart
 } from "lucide-react";
 
 interface WalletData {
@@ -331,6 +332,14 @@ const Dashboard = () => {
               <div className="flex items-center gap-3">
                 <TrendingUp className="h-5 w-5" />
                 <span>Trade Stocks</span>
+              </div>
+            </Button>
+          </Link>
+          <Link to="/portfolio">
+            <Button variant="outline" className="w-full h-auto py-4">
+              <div className="flex items-center gap-3">
+                <PieChart className="h-5 w-5" />
+                <span>Portfolio</span>
               </div>
             </Button>
           </Link>
