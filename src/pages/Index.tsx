@@ -45,8 +45,8 @@ const Index = () => {
   const stats = [
     { value: "$11.5T", label: "Assets Under Administration" },
     { value: "40M+", label: "Individual Investors" },
-    { value: "75+", label: "Years of Experience" },
-    { value: "24/7", label: "Customer Support" },
+    { value: "38+", label: "Active Partnerships" },
+    { value: "11K+", label: "Grants Approved" },
   ];
 
   const benefits = [

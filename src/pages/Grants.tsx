@@ -63,13 +63,25 @@ const Grants = () => {
               We're committed to making a positive impact in communities through our comprehensive grant programs. 
               Apply today and help us build a better tomorrow.
             </p>
-            <div className="mt-8 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+            <div className="mt-8 flex flex-col sm:flex-row gap-4 animate-slide-up" style={{ animationDelay: '0.2s' }}>
               <Link to="/grant-application">
                 <Button variant="hero" size="xl">
                   Apply for a Grant
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
+            </div>
+
+            {/* Hero Stats Cards */}
+            <div className="mt-10 grid grid-cols-2 gap-4 max-w-md animate-slide-up" style={{ animationDelay: '0.3s' }}>
+              <div className="bg-primary-foreground/10 backdrop-blur-md rounded-xl p-5 border border-primary-foreground/20">
+                <div className="text-2xl md:text-3xl font-bold text-accent">38+</div>
+                <div className="text-sm text-primary-foreground/70 mt-1">Active Partnerships</div>
+              </div>
+              <div className="bg-primary-foreground/10 backdrop-blur-md rounded-xl p-5 border border-primary-foreground/20">
+                <div className="text-2xl md:text-3xl font-bold text-accent">11K+</div>
+                <div className="text-sm text-primary-foreground/70 mt-1">Grants Approved</div>
+              </div>
             </div>
           </div>
         </div>
