@@ -14,6 +14,7 @@ import WhyFidelity from "./pages/WhyFidelity";
 import FundAccount from "./pages/FundAccount";
 import Withdraw from "./pages/Withdraw";
 import TransactionHistory from "./pages/TransactionHistory";
+import Portfolio from "./pages/Portfolio";
 import CustomerService from "./pages/CustomerService";
 import Profile from "./pages/Profile";
 import Grants from "./pages/Grants";
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/fund-account" element={<FundAccount />} />
             <Route path="/withdraw" element={<Withdraw />} />
             <Route path="/transactions" element={<TransactionHistory />} />
+            <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/customer-service" element={<CustomerService />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/grants" element={<Grants />} />
