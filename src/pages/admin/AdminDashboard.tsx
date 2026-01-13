@@ -1165,6 +1165,74 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
     return user?.full_name || 'Unknown';
   };
 
+  const exportToCSV = (data: GrantApplication[], userList: UserProfile[]) => {
+    if (data.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No applications to export",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const getUserEmailForExport = (userId: string) => {
+      const user = userList.find(u => u.user_id === userId);
+      return user?.email || 'Unknown';
+    };
+
+    const headers = [
+      'Application ID',
+      'Date Submitted',
+      'Applicant Email',
+      'Organization Name',
+      'Organization Type',
+      'Grant Type',
+      'Contact Name',
+      'Contact Email',
+      'Contact Phone',
+      'Requested Amount',
+      'Status',
+      'Admin Notes',
+      'Reviewed At'
+    ];
+
+    const csvRows = data.map(app => [
+      app.id,
+      new Date(app.created_at).toLocaleDateString(),
+      getUserEmailForExport(app.user_id),
+      `"${app.organization_name.replace(/"/g, '""')}"`,
+      app.organization_type || '',
+      app.grant_type.replace('-', ' '),
+      `"${app.contact_name.replace(/"/g, '""')}"`,
+      app.contact_email,
+      app.contact_phone || '',
+      app.requested_amount,
+      app.status,
+      app.admin_notes ? `"${app.admin_notes.replace(/"/g, '""')}"` : '',
+      app.reviewed_at ? new Date(app.reviewed_at).toLocaleDateString() : ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...csvRows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `grant_applications_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Export Complete",
+      description: `Exported ${data.length} applications to CSV`,
+    });
+  };
+
   const fetchApplications = async () => {
     setLoading(true);
     try {
@@ -1384,6 +1452,14 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
               <SelectItem value="rejected">Rejected</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            variant="outline"
+            onClick={() => exportToCSV(applications, users)}
+            className="flex items-center gap-2"
+          >
+            <ArrowDownToLine className="h-4 w-4" />
+            Export CSV
+          </Button>
         </div>
       </div>
 
