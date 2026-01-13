@@ -51,6 +51,7 @@ import {
   Copy,
   Mail,
   ArrowDownToLine,
+  Search,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -1145,34 +1146,35 @@ interface GrantApplication {
 const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
   const { toast } = useToast();
   const [applications, setApplications] = useState<GrantApplication[]>([]);
+  const [allApplications, setAllApplications] = useState<GrantApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedApplication, setSelectedApplication] = useState<GrantApplication | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [adminNotes, setAdminNotes] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const getUserEmail = (userId: string) => {
     const user = users.find(u => u.user_id === userId);
     return user?.email || 'Unknown';
   };
 
+  const getUserName = (userId: string) => {
+    const user = users.find(u => u.user_id === userId);
+    return user?.full_name || 'Unknown';
+  };
+
   const fetchApplications = async () => {
     setLoading(true);
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from('grant_applications')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (statusFilter !== "all") {
-        query = query.eq('status', statusFilter);
-      }
-
-      const { data, error } = await query;
-
       if (error) throw error;
-      setApplications(data || []);
+      setAllApplications(data || []);
     } catch (error) {
       console.error('Error fetching applications:', error);
     } finally {
@@ -1182,7 +1184,27 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
 
   useEffect(() => {
     fetchApplications();
-  }, [statusFilter]);
+  }, []);
+
+  useEffect(() => {
+    let filtered = [...allApplications];
+    
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(app => app.status === statusFilter);
+    }
+    
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(app => 
+        app.organization_name.toLowerCase().includes(query) ||
+        app.contact_name.toLowerCase().includes(query) ||
+        app.contact_email.toLowerCase().includes(query) ||
+        getUserEmail(app.user_id).toLowerCase().includes(query)
+      );
+    }
+    
+    setApplications(filtered);
+  }, [statusFilter, searchQuery, allApplications]);
 
   const updateApplicationStatus = async (applicationId: string, newStatus: string) => {
     try {
@@ -1228,14 +1250,128 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
     }
   };
 
+  // Calculate stats
+  const stats = {
+    total: allApplications.length,
+    pending: allApplications.filter(a => a.status === 'pending').length,
+    underReview: allApplications.filter(a => a.status === 'under_review').length,
+    approved: allApplications.filter(a => a.status === 'approved').length,
+    rejected: allApplications.filter(a => a.status === 'rejected').length,
+    totalRequested: allApplications.reduce((sum, a) => sum + Number(a.requested_amount), 0),
+    totalApproved: allApplications.filter(a => a.status === 'approved').reduce((sum, a) => sum + Number(a.requested_amount), 0),
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div 
+          className={`card-elevated p-4 cursor-pointer transition-all ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-yellow-500/10">
+              <Clock className="h-5 w-5 text-yellow-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{stats.pending}</p>
+              <p className="text-sm text-muted-foreground">Pending</p>
+            </div>
+          </div>
+        </div>
+        <div 
+          className={`card-elevated p-4 cursor-pointer transition-all ${statusFilter === 'under_review' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'under_review' ? 'all' : 'under_review')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-500/10">
+              <Eye className="h-5 w-5 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{stats.underReview}</p>
+              <p className="text-sm text-muted-foreground">Under Review</p>
+            </div>
+          </div>
+        </div>
+        <div 
+          className={`card-elevated p-4 cursor-pointer transition-all ${statusFilter === 'approved' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-500/10">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{stats.approved}</p>
+              <p className="text-sm text-muted-foreground">Approved</p>
+            </div>
+          </div>
+        </div>
+        <div 
+          className={`card-elevated p-4 cursor-pointer transition-all ${statusFilter === 'rejected' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'rejected' ? 'all' : 'rejected')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-red-500/10">
+              <XCircle className="h-5 w-5 text-red-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{stats.rejected}</p>
+              <p className="text-sm text-muted-foreground">Rejected</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="card-elevated p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <FileCheck className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">{stats.total}</p>
+              <p className="text-sm text-muted-foreground">Total Applications</p>
+            </div>
+          </div>
+        </div>
+        <div className="card-elevated p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-muted">
+              <DollarSign className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">${stats.totalRequested.toLocaleString()}</p>
+              <p className="text-sm text-muted-foreground">Total Requested</p>
+            </div>
+          </div>
+        </div>
+        <div className="card-elevated p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-accent/10">
+              <DollarSign className="h-5 w-5 text-accent" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-accent">${stats.totalApproved.toLocaleString()}</p>
+              <p className="text-sm text-muted-foreground">Total Approved</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Grant Applications</h2>
           <p className="text-muted-foreground">Review and manage grant applications</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          <Input
+            placeholder="Search applications..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full md:w-64"
+          />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Filter by status" />
