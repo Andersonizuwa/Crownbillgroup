@@ -97,7 +97,7 @@ interface CopyTradeAttempt {
 }
 
 const AdminDashboard = () => {
-  const { user, isAdmin, signOut, isLoading } = useAuth();
+  const { user, isAdmin, logout, isLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -317,8 +317,8 @@ const AdminDashboard = () => {
     return wallets.find(w => w.user_id === userId);
   };
 
-  const handleSignOut = async () => {
-    await signOut();
+  const handleSignOut = () => {
+    logout();
     navigate("/login");
   };
 
