@@ -7,7 +7,6 @@ import Layout from "@/components/layout/Layout";
 import { Eye, EyeOff, Lock, Mail, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 import heroImage from "@/assets/hero-finance.jpg";
 
@@ -19,7 +18,7 @@ const loginSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn, isAdmin } = useAuth();
+  const { login, isAdmin } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -50,40 +49,29 @@ const Login = () => {
 
     setIsLoading(true);
 
-    const { error } = await signIn(formData.email, formData.password);
+    try {
+      await login(formData.email, formData.password);
 
-    if (error) {
-      setIsLoading(false);
       toast({
-        title: "Login Failed",
-        description: error.message || "Invalid email or password",
-        variant: "destructive",
+        title: "Login Successful",
+        description: "Welcome back!",
       });
-      return;
-    }
 
-    toast({
-      title: "Login Successful",
-      description: "Welcome back!",
-    });
-
-    // Allow time for admin status to be checked, then redirect
-    setTimeout(async () => {
-      setIsLoading(false);
-      // Check if user is admin by re-fetching their role
-      const { data } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-        .eq('role', 'admin')
-        .maybeSingle();
-      
-      if (data) {
+      // Check isAdmin from context and redirect accordingly
+      if (isAdmin) {
         navigate("/admin");
       } else {
         navigate("/dashboard");
       }
-    }, 500);
+    } catch (err: any) {
+      toast({
+        title: "Login Failed",
+        description: err.message || "Invalid email or password",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

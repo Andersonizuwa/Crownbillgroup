@@ -14,8 +14,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "../hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "../contexts/AuthContext";
 import { 
   User, 
   FileText, 
@@ -43,7 +42,7 @@ const steps = [
 const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signUp } = useAuth();
+  const { register } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -198,49 +197,18 @@ const Register = () => {
     setIsSubmitting(true);
     
     try {
-      // Create user account
-      const { error } = await signUp(formData.email, formData.password, formData.fullName);
-      
-      if (error) {
-        toast({
-          title: "Registration Failed",
-          description: error.message || "Failed to create account",
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Update profile with additional data
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        await supabase.from('profiles').update({
-          phone: formData.phone,
-          date_of_birth: formData.dateOfBirth,
-          marital_status: formData.maritalStatus,
-          nationality: formData.nationality,
-          country_of_residence: formData.countryOfResidence,
-          tax_id: formData.taxId,
-          is_pep: formData.isPEP === 'yes',
-          pep_details: formData.pepDetails || null,
-          has_business: formData.hasBusiness,
-          business_name: formData.hasBusiness ? formData.businessName : null,
-          business_type: formData.hasBusiness ? formData.businessType : null,
-          business_industry: formData.hasBusiness ? formData.businessIndustry : null,
-          business_tax_id: formData.hasBusiness ? formData.businessTaxId : null,
-        }).eq('user_id', user.id);
-      }
+      // Create user account via MySQL backend
+      await register(formData.email, formData.password, formData.fullName);
 
       toast({
         title: "Account Created Successfully",
-        description: "Welcome to CrownBillGroup! You can now log in.",
+        description: "Welcome to CrownBillGroup!",
       });
-      navigate("/login");
-    } catch (err) {
+      navigate("/dashboard");
+    } catch (err: any) {
       toast({
         title: "Registration Failed",
-        description: "An error occurred. Please try again.",
+        description: err.message || "An error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
