@@ -1,0 +1,245 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum AppRole {
+  admin
+  user
+}
+
+enum AccountStatus {
+  active
+  inactive
+  pending
+}
+
+enum KycStatus {
+  pending
+  approved
+  rejected
+}
+
+enum TransactionType {
+  deposit
+  withdrawal
+  transfer
+  trade
+}
+
+enum TransactionStatus {
+  pending
+  completed
+  failed
+  cancelled
+}
+
+enum DocumentType {
+  id
+  passport
+  drivers_license
+  utility_bill
+  bank_statement
+}
+
+enum DocumentStatus {
+  pending
+  approved
+  rejected
+}
+
+enum GrantStatus {
+  pending
+  under_review
+  approved
+  rejected
+}
+
+enum AssetType {
+  stock
+  crypto
+}
+
+enum ActionType {
+  copy_trade
+  apply_strategy
+}
+
+model User {
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  passwordHash          String?
+  magicLinkToken        String?   @unique
+  magicLinkExpires      DateTime?
+  resetPasswordToken    String?   @unique
+  resetPasswordExpires  DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  profile               Profile?
+  roles                 UserRole[]
+  wallet                Wallet?
+  transactions          Transaction[]
+  kycDocuments          KycDocument[]
+  activityLogs          ActivityLog[]
+  grantApplications     GrantApplication[]
+  copyTradeAttempts     CopyTradeAttempt[]
+  deposits              Deposit[]
+  withdrawals           Withdrawal[]
+}
+
+model Profile {
+  id                  String        @id @default(uuid())
+  userId              String        @unique
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email               String
+  fullName            String?
+  phone               String?
+  dateOfBirth         DateTime?
+  nationality         String?
+  countryOfResidence  String?
+  maritalStatus       String?
+  taxId               String?
+  isPep               Boolean       @default(false)
+  pepDetails          String?       @db.Text
+  kycStatus           String        @default("pending")
+  accountStatus       AccountStatus @default(pending)
+  hasBusiness         Boolean       @default(false)
+  businessName        String?
+  businessType        String?
+  businessIndustry    String?
+  businessTaxId       String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+}
+
+model UserRole {
+  id      String  @id @default(uuid())
+  userId  String
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    AppRole @default(user)
+
+  @@unique([userId, role])
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Decimal  @default(0.00) @db.Decimal(15, 2)
+  currency  String   @default("USD")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Transaction {
+  id            String            @id @default(uuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          TransactionType
+  amount        Decimal           @db.Decimal(15, 2)
+  description   String?           @db.Text
+  status        TransactionStatus @default(completed)
+  referenceId   String?
+  createdAt     DateTime          @default(now())
+}
+
+model KycDocument {
+  id            String         @id @default(uuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentType  DocumentType
+  fileUrl       String         @db.Text
+  status        DocumentStatus @default(pending)
+  createdAt     DateTime       @default(now())
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model GrantApplication {
+  id                  String      @id @default(uuid())
+  userId              String
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantType           String
+  organizationName    String
+  organizationType    String?
+  contactName         String
+  contactEmail        String
+  contactPhone        String?
+  projectDescription  String      @db.Text
+  requestedAmount     Decimal     @db.Decimal(15, 2)
+  status              GrantStatus @default(pending)
+  adminNotes          String?     @db.Text
+  reviewedAt          DateTime?
+  reviewedBy          String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+}
+
+model CopyTradeAttempt {
+  id               String     @id @default(uuid())
+  userId           String
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  traderName       String
+  assetSymbol      String
+  assetType        AssetType
+  actionType       ActionType
+  profitPercentage Decimal?   @db.Decimal(15, 2)
+  createdAt        DateTime   @default(now())
+}
+
+model Deposit {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount          Decimal   @db.Decimal(15, 2)
+  paymentMethod   String    // 'crypto' or 'paypal'
+  cryptoType      String?   // 'btc', 'eth', 'usdt', etc.
+  transactionHash String?
+  proofNotes      String?   @db.Text
+  status          String    @default("pending") // 'pending', 'approved', 'rejected'
+  adminNotes      String?   @db.Text
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Withdrawal {
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount           Decimal   @db.Decimal(15, 2)
+  withdrawalMethod String
+  walletAddress    String?
+  bankDetails      String?   @db.Text
+  status           String    @default("pending") // 'pending', 'approved', 'rejected'
+  adminNotes       String?   @db.Text
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model PasswordResets {
+  id        String   @id @default(uuid())
+  email     String
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
