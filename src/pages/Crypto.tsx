@@ -4,6 +4,7 @@ import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import LiveTraderInterests from "@/components/LiveTraderInterests";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Search, 
   TrendingUp,
@@ -26,11 +27,12 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 
 const Crypto = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCrypto, setSelectedCrypto] = useState<typeof cryptoData[0] | null>(null);
   const [buyDialogOpen, setBuyDialogOpen] = useState(false);
@@ -38,6 +40,8 @@ const Crypto = () => {
   const [buyAmount, setBuyAmount] = useState("");
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isLoadingWallet, setIsLoadingWallet] = useState(true);
+  const [isExecutingTrade, setIsExecutingTrade] = useState(false);
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
 
   // Fetch wallet balance
   useEffect(() => {
@@ -47,25 +51,46 @@ const Crypto = () => {
         return;
       }
       
-      const { data } = await supabase
-        .from('wallets')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (data) {
-        setWalletBalance(data.balance || 0);
+      try {
+        const { data } = await api.get('/user/wallet');
+        if (data) {
+          setWalletBalance(parseFloat(data.balance) || 0);
+        }
+      } catch (error) {
+        console.error('Error fetching wallet balance:', error);
       }
       setIsLoadingWallet(false);
     };
     
     fetchWallet();
   }, [user]);
+
+  // Fetch live crypto prices from backend
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const { data } = await api.get('/trades/prices?assetType=crypto');
+        if (data) {
+          const priceMap: Record<string, number> = {};
+          data.forEach((item: any) => {
+            priceMap[item.symbol] = item.price;
+          });
+          setLivePrices(priceMap);
+        }
+      } catch (error) {
+        console.error('Error fetching live prices:', error);
+      }
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 5000); // Update every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
   const cryptoData = [
     { 
       symbol: "BTC", 
       name: "Bitcoin", 
-      price: 97234.56, 
+      price: livePrices['BTC'] || 98234.56, 
       change: 1245.32, 
       changePercent: 1.30, 
       volume: "28.5B",
@@ -77,7 +102,7 @@ const Crypto = () => {
     { 
       symbol: "ETH", 
       name: "Ethereum", 
-      price: 3456.78, 
+      price: livePrices['ETH'] || 3456.78, 
       change: -45.23, 
       changePercent: -1.29, 
       volume: "15.2B",
@@ -89,7 +114,7 @@ const Crypto = () => {
     { 
       symbol: "BNB", 
       name: "BNB", 
-      price: 712.45, 
+      price: livePrices['BNB'] || 612.34, 
       change: 23.67, 
       changePercent: 3.44, 
       volume: "1.8B",
@@ -101,7 +126,7 @@ const Crypto = () => {
     { 
       symbol: "SOL", 
       name: "Solana", 
-      price: 198.34, 
+      price: livePrices['SOL'] || 198.45, 
       change: 8.56, 
       changePercent: 4.51, 
       volume: "3.2B",
@@ -113,7 +138,7 @@ const Crypto = () => {
     { 
       symbol: "XRP", 
       name: "XRP", 
-      price: 2.34, 
+      price: livePrices['XRP'] || 2.34, 
       change: 0.12, 
       changePercent: 5.41, 
       volume: "8.9B",
@@ -125,7 +150,7 @@ const Crypto = () => {
     { 
       symbol: "ADA", 
       name: "Cardano", 
-      price: 1.12, 
+      price: livePrices['ADA'] || 0.89, 
       change: -0.03, 
       changePercent: -2.61, 
       volume: "892M",
@@ -137,7 +162,7 @@ const Crypto = () => {
     { 
       symbol: "DOGE", 
       name: "Dogecoin", 
-      price: 0.38, 
+      price: livePrices['DOGE'] || 0.23, 
       change: 0.02, 
       changePercent: 5.56, 
       volume: "2.1B",
@@ -149,7 +174,7 @@ const Crypto = () => {
     { 
       symbol: "AVAX", 
       name: "Avalanche", 
-      price: 42.56, 
+      price: livePrices['AVAX'] || 78.90, 
       change: 1.23, 
       changePercent: 2.98, 
       volume: "456M",
@@ -161,7 +186,7 @@ const Crypto = () => {
     { 
       symbol: "DOT", 
       name: "Polkadot", 
-      price: 8.92, 
+      price: livePrices['DOT'] || 12.45, 
       change: -0.15, 
       changePercent: -1.65, 
       volume: "312M",
@@ -173,7 +198,7 @@ const Crypto = () => {
     { 
       symbol: "LINK", 
       name: "Chainlink", 
-      price: 24.78, 
+      price: livePrices['LINK'] || 23.45, 
       change: 0.89, 
       changePercent: 3.72, 
       volume: "678M",
@@ -184,13 +209,69 @@ const Crypto = () => {
     },
   ];
 
-  const portfolioSummary = {
-    totalValue: 45678.90,
-    dayChange: 567.23,
-    dayChangePercent: 1.26,
-    totalGain: 8234.50,
-    totalGainPercent: 21.98,
-  };
+  const [portfolioSummary, setPortfolioSummary] = useState({
+    totalValue: 0,
+    dayChange: 0,
+    dayChangePercent: 0,
+    totalGain: 0,
+    totalGainPercent: 0,
+  });
+
+  // Fetch real portfolio summary data
+  useEffect(() => {
+    const fetchPortfolioSummary = async () => {
+      if (!user) return;
+      
+      try {
+        // Get wallet balance
+        const walletResponse = await api.get('/user/wallet');
+        const walletBalance = parseFloat(walletResponse.data.balance);
+        
+        // Get holdings with current prices
+        const holdingsResponse = await api.get('/trades/holdings/prices');
+        const holdings = holdingsResponse.data.holdings || [];
+        
+        // Filter for crypto holdings only
+        const cryptoHoldings = holdings.filter((h: any) => h.assetType === 'crypto');
+        
+        // Calculate portfolio value
+        const cryptoValue = cryptoHoldings.reduce((sum: number, h: any) => sum + parseFloat(h.currentValue), 0);
+        const totalValue = walletBalance + cryptoValue;
+        
+        // Calculate today's change
+        const dayChange = cryptoHoldings.reduce((sum: number, h: any) => {
+          const change = parseFloat(h.currentValue) - parseFloat(h.totalCost);
+          return sum + change;
+        }, 0);
+        
+        const dayChangePercent = totalValue > 0 ? (dayChange / totalValue) * 100 : 0;
+        
+        // Calculate total gain
+        const totalGain = cryptoHoldings.reduce((sum: number, h: any) => {
+          const gain = parseFloat(h.currentValue) - parseFloat(h.totalCost);
+          return sum + gain;
+        }, 0);
+        
+        const totalGainPercent = totalValue > 0 ? (totalGain / totalValue) * 100 : 0;
+        
+        setPortfolioSummary({
+          totalValue,
+          dayChange,
+          dayChangePercent,
+          totalGain,
+          totalGainPercent,
+        });
+      } catch (error) {
+        console.error('Error fetching portfolio summary:', error);
+      }
+    };
+    
+    fetchPortfolioSummary();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchPortfolioSummary, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const filteredCrypto = cryptoData.filter(crypto => 
     crypto.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -216,6 +297,59 @@ const Crypto = () => {
   const calculateCryptoAmount = () => {
     if (!selectedCrypto || !buyAmount) return "0";
     return (parseFloat(buyAmount) / selectedCrypto.price).toFixed(8);
+  };
+
+  const handleExecuteBuy = async () => {
+    if (!selectedCrypto || !buyAmount || !user) return;
+
+    const amount = parseFloat(buyAmount);
+    if (amount <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Amount",
+        description: "Please enter a valid amount",
+      });
+      return;
+    }
+
+    setIsExecutingTrade(true);
+
+    try {
+      const cryptoQty = parseFloat(calculateCryptoAmount());
+      
+      const { data } = await api.post('/trades/buy', {
+        assetType: 'crypto',
+        symbol: selectedCrypto.symbol,
+        assetName: selectedCrypto.name,
+        quantity: cryptoQty,
+        price: selectedCrypto.price
+      });
+
+      toast({
+        title: "Success!",
+        description: data.message || `Crypto purchased successfully`,
+      });
+
+      // Refresh wallet balance
+      const walletResponse = await api.get('/user/wallet');
+      if (walletResponse.data) {
+        setWalletBalance(parseFloat(walletResponse.data.balance) || 0);
+      }
+
+      // Close dialog and reset
+      setBuyDialogOpen(false);
+      setBuyAmount("");
+      setSelectedCrypto(null);
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Purchase Failed",
+        description: error.response?.data?.error || error.message || "Failed to purchase crypto",
+      });
+    } finally {
+      setIsExecutingTrade(false);
+    }
   };
 
   return (
@@ -426,10 +560,11 @@ const Crypto = () => {
             <Button 
               variant="accent" 
               className="w-full"
-              disabled={!buyAmount || parseFloat(buyAmount) <= 0}
+              disabled={!buyAmount || parseFloat(buyAmount) <= 0 || isExecutingTrade}
+              onClick={handleExecuteBuy}
             >
               <TrendingUp className="mr-2 h-4 w-4" />
-              Buy {selectedCrypto?.symbol}
+              {isExecutingTrade ? "Processing..." : `Buy ${selectedCrypto?.symbol}`}
             </Button>
             <p className="text-xs text-center text-muted-foreground">
               Trading fee: 0.1% • Instant execution

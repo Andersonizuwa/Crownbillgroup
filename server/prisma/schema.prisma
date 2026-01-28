@@ -7,38 +7,259 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum AppRole {
-  admin
-  user
+model activitylog {
+  id        String   @id
+  userId    String
+  action    String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "ActivityLog_userId_fkey")
+
+  @@index([userId], map: "ActivityLog_userId_fkey")
 }
 
-enum AccountStatus {
-  active
-  inactive
-  pending
+model copytradeattempt {
+  id               String                      @id
+  userId           String
+  traderName       String
+  assetSymbol      String
+  assetType        copytradeattempt_assetType
+  actionType       copytradeattempt_actionType
+  profitPercentage Decimal?                    @db.Decimal(15, 2)
+  createdAt        DateTime                    @default(now())
+  user             user                        @relation(fields: [userId], references: [id], onDelete: Cascade, map: "CopyTradeAttempt_userId_fkey")
+
+  @@index([userId], map: "CopyTradeAttempt_userId_fkey")
 }
 
-enum KycStatus {
-  pending
-  approved
-  rejected
+model deposit {
+  id              String    @id
+  userId          String
+  amount          Decimal   @db.Decimal(15, 2)
+  paymentMethod   String
+  cryptoType      String?
+  transactionHash String?
+  proofNotes      String?   @db.Text
+  status          String    @default("pending")
+  adminNotes      String?   @db.Text
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime
+  user            user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Deposit_userId_fkey")
+
+  @@index([userId], map: "Deposit_userId_fkey")
 }
 
-enum TransactionType {
-  deposit
-  withdrawal
-  transfer
-  trade
+model grantapplication {
+  id                 String                  @id
+  userId             String
+  grantType          String
+  organizationName   String
+  organizationType   String?
+  contactName        String
+  contactEmail       String
+  contactPhone       String?
+  projectDescription String                  @db.Text
+  requestedAmount    Decimal                 @db.Decimal(15, 2)
+  status             grantapplication_status @default(pending)
+  adminNotes         String?                 @db.Text
+  reviewedAt         DateTime?
+  reviewedBy         String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime
+  user               user                    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "GrantApplication_userId_fkey")
+
+  @@index([userId], map: "GrantApplication_userId_fkey")
 }
 
-enum TransactionStatus {
-  pending
-  completed
-  failed
-  cancelled
+model holding {
+  id            String            @id
+  userId        String
+  assetType     holding_assetType
+  symbol        String
+  assetName     String
+  quantity      Decimal           @db.Decimal(20, 8)
+  averagePrice  Decimal           @db.Decimal(15, 2)
+  currentPrice  Decimal           @db.Decimal(15, 2)
+  totalCost     Decimal           @db.Decimal(15, 2)
+  currentValue  Decimal           @db.Decimal(15, 2)
+  profitLoss    Decimal           @db.Decimal(15, 2)
+  profitLossPct Decimal           @db.Decimal(10, 2)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime
+  user          user              @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Holding_userId_fkey")
+
+  @@unique([userId, assetType, symbol], map: "Holding_userId_assetType_symbol_key")
+  @@index([userId], map: "Holding_userId_idx")
 }
 
-enum DocumentType {
+model kycdocument {
+  id           String                   @id
+  userId       String
+  documentType kycdocument_documentType
+  fileUrl      String                   @db.Text
+  status       kycdocument_status       @default(pending)
+  createdAt    DateTime                 @default(now())
+  user         user                     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "KycDocument_userId_fkey")
+
+  @@index([userId], map: "KycDocument_userId_fkey")
+}
+
+model passwordresets {
+  id        String   @id
+  email     String
+  userId    String
+  token     String   @unique(map: "PasswordResets_token_key")
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model profile {
+  id                 String                @id
+  userId             String                @unique(map: "Profile_userId_key")
+  email              String
+  fullName           String?
+  phone              String?
+  dateOfBirth        DateTime?
+  nationality        String?
+  countryOfResidence String?
+  maritalStatus      String?
+  taxId              String?
+  isPep              Boolean               @default(false)
+  pepDetails         String?               @db.Text
+  kycStatus          String                @default("pending")
+  accountStatus      profile_accountStatus @default(pending)
+  hasBusiness        Boolean               @default(false)
+  businessName       String?
+  businessType       String?
+  businessIndustry   String?
+  businessTaxId      String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime
+  user               user                  @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Profile_userId_fkey")
+}
+
+model trade {
+  id          String          @id
+  userId      String
+  assetType   trade_assetType
+  symbol      String
+  assetName   String
+  tradeType   String
+  quantity    Decimal         @db.Decimal(20, 8)
+  price       Decimal         @db.Decimal(15, 2)
+  totalAmount Decimal         @db.Decimal(15, 2)
+  fee         Decimal         @default(0.00) @db.Decimal(15, 2)
+  status      trade_status    @default(executed)
+  executedAt  DateTime        @default(now())
+  createdAt   DateTime        @default(now())
+  user        user            @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Trade_userId_fkey")
+
+  @@index([createdAt], map: "Trade_createdAt_idx")
+  @@index([symbol], map: "Trade_symbol_idx")
+  @@index([userId], map: "Trade_userId_idx")
+}
+
+model transaction {
+  id          String             @id
+  userId      String
+  type        transaction_type
+  amount      Decimal            @db.Decimal(15, 2)
+  description String?            @db.Text
+  status      transaction_status @default(completed)
+  referenceId String?
+  createdAt   DateTime           @default(now())
+  user        user               @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Transaction_userId_fkey")
+
+  @@index([userId], map: "Transaction_userId_fkey")
+}
+
+model user {
+  id                   String             @id
+  email                String             @unique(map: "User_email_key")
+  passwordHash         String?
+  magicLinkToken       String?            @unique(map: "User_magicLinkToken_key")
+  magicLinkExpires     DateTime?
+  resetPasswordToken   String?            @unique(map: "User_resetPasswordToken_key")
+  resetPasswordExpires DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime
+  activitylog          activitylog[]
+  copytradeattempt     copytradeattempt[]
+  deposit              deposit[]
+  grantapplication     grantapplication[]
+  holding              holding[]
+  kycdocument          kycdocument[]
+  profile              profile?
+  trade                trade[]
+  transaction          transaction[]
+  userrole             userrole[]
+  wallet               wallet?
+  withdrawal           withdrawal[]
+  loginHistory         loginhistory[]
+}
+
+model userrole {
+  id     String        @id
+  userId String
+  role   userrole_role @default(user)
+  user   user          @relation(fields: [userId], references: [id], onDelete: Cascade, map: "UserRole_userId_fkey")
+
+  @@unique([userId, role], map: "UserRole_userId_role_key")
+}
+
+model wallet {
+  id        String   @id
+  userId    String   @unique(map: "Wallet_userId_key")
+  balance   Decimal  @default(0.00) @db.Decimal(15, 2)
+  currency  String   @default("USD")
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Wallet_userId_fkey")
+}
+
+model withdrawal {
+  id               String    @id
+  userId           String
+  amount           Decimal   @db.Decimal(15, 2)
+  withdrawalMethod String
+  walletAddress    String?
+  bankDetails      String?   @db.Text
+  status           String    @default("pending")
+  adminNotes       String?   @db.Text
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+  user             user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Withdrawal_userId_fkey")
+
+  @@index([userId], map: "Withdrawal_userId_fkey")
+}
+
+model loginhistory {
+  id            String   @id
+  userId        String
+  ipAddress     String?  @db.VarChar(45)
+  userAgent     String?  @db.Text
+  timestamp     DateTime @default(now()) @db.DateTime(3)
+  success       Boolean  @default(true)
+  failureReason String?
+  user          user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "LoginHistory_userId_fkey")
+
+  @@index([userId])
+  @@index([timestamp])
+}
+
+enum holding_assetType {
+  stock
+  crypto
+}
+
+enum kycdocument_documentType {
   id
   passport
   drivers_license
@@ -46,200 +267,63 @@ enum DocumentType {
   bank_statement
 }
 
-enum DocumentStatus {
+enum trade_assetType {
+  stock
+  crypto
+}
+
+enum transaction_type {
+  deposit
+  withdrawal
+  transfer
+  trade_buy
+  trade_sell
+}
+
+enum userrole_role {
+  admin
+  user
+}
+
+enum copytradeattempt_assetType {
+  stock
+  crypto
+}
+
+enum kycdocument_status {
   pending
   approved
   rejected
 }
 
-enum GrantStatus {
+enum copytradeattempt_actionType {
+  copy_trade
+  apply_strategy
+}
+
+enum transaction_status {
+  pending
+  completed
+  failed
+  cancelled
+}
+
+enum grantapplication_status {
   pending
   under_review
   approved
   rejected
 }
 
-enum AssetType {
-  stock
-  crypto
+enum trade_status {
+  pending
+  executed
+  cancelled
+  failed
 }
 
-enum ActionType {
-  copy_trade
-  apply_strategy
-}
-
-model User {
-  id                    String    @id @default(uuid())
-  email                 String    @unique
-  passwordHash          String?
-  magicLinkToken        String?   @unique
-  magicLinkExpires      DateTime?
-  resetPasswordToken    String?   @unique
-  resetPasswordExpires  DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  profile               Profile?
-  roles                 UserRole[]
-  wallet                Wallet?
-  transactions          Transaction[]
-  kycDocuments          KycDocument[]
-  activityLogs          ActivityLog[]
-  grantApplications     GrantApplication[]
-  copyTradeAttempts     CopyTradeAttempt[]
-  deposits              Deposit[]
-  withdrawals           Withdrawal[]
-}
-
-model Profile {
-  id                  String        @id @default(uuid())
-  userId              String        @unique
-  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  email               String
-  fullName            String?
-  phone               String?
-  dateOfBirth         DateTime?
-  nationality         String?
-  countryOfResidence  String?
-  maritalStatus       String?
-  taxId               String?
-  isPep               Boolean       @default(false)
-  pepDetails          String?       @db.Text
-  kycStatus           String        @default("pending")
-  accountStatus       AccountStatus @default(pending)
-  hasBusiness         Boolean       @default(false)
-  businessName        String?
-  businessType        String?
-  businessIndustry    String?
-  businessTaxId       String?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-}
-
-model UserRole {
-  id      String  @id @default(uuid())
-  userId  String
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role    AppRole @default(user)
-
-  @@unique([userId, role])
-}
-
-model Wallet {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  balance   Decimal  @default(0.00) @db.Decimal(15, 2)
-  currency  String   @default("USD")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Transaction {
-  id            String            @id @default(uuid())
-  userId        String
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type          TransactionType
-  amount        Decimal           @db.Decimal(15, 2)
-  description   String?           @db.Text
-  status        TransactionStatus @default(completed)
-  referenceId   String?
-  createdAt     DateTime          @default(now())
-}
-
-model KycDocument {
-  id            String         @id @default(uuid())
-  userId        String
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  documentType  DocumentType
-  fileUrl       String         @db.Text
-  status        DocumentStatus @default(pending)
-  createdAt     DateTime       @default(now())
-}
-
-model ActivityLog {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  action    String
-  details   Json?
-  ipAddress String?
-  createdAt DateTime @default(now())
-}
-
-model GrantApplication {
-  id                  String      @id @default(uuid())
-  userId              String
-  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  grantType           String
-  organizationName    String
-  organizationType    String?
-  contactName         String
-  contactEmail        String
-  contactPhone        String?
-  projectDescription  String      @db.Text
-  requestedAmount     Decimal     @db.Decimal(15, 2)
-  status              GrantStatus @default(pending)
-  adminNotes          String?     @db.Text
-  reviewedAt          DateTime?
-  reviewedBy          String?
-  createdAt           DateTime    @default(now())
-  updatedAt           DateTime    @updatedAt
-}
-
-model CopyTradeAttempt {
-  id               String     @id @default(uuid())
-  userId           String
-  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  traderName       String
-  assetSymbol      String
-  assetType        AssetType
-  actionType       ActionType
-  profitPercentage Decimal?   @db.Decimal(15, 2)
-  createdAt        DateTime   @default(now())
-}
-
-model Deposit {
-  id              String    @id @default(uuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount          Decimal   @db.Decimal(15, 2)
-  paymentMethod   String    // 'crypto' or 'paypal'
-  cryptoType      String?   // 'btc', 'eth', 'usdt', etc.
-  transactionHash String?
-  proofNotes      String?   @db.Text
-  status          String    @default("pending") // 'pending', 'approved', 'rejected'
-  adminNotes      String?   @db.Text
-  reviewedBy      String?
-  reviewedAt      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-}
-
-model Withdrawal {
-  id               String    @id @default(uuid())
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount           Decimal   @db.Decimal(15, 2)
-  withdrawalMethod String
-  walletAddress    String?
-  bankDetails      String?   @db.Text
-  status           String    @default("pending") // 'pending', 'approved', 'rejected'
-  adminNotes       String?   @db.Text
-  reviewedBy       String?
-  reviewedAt       DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-}
-
-model PasswordResets {
-  id        String   @id @default(uuid())
-  email     String
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  used      Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum profile_accountStatus {
+  active
+  inactive
+  pending
 }

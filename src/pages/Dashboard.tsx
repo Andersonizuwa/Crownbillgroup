@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   Wallet,
@@ -29,17 +29,17 @@ interface WalletData {
 
 interface GrantApplication {
   id: string;
-  grant_type: string;
-  organization_name: string;
-  requested_amount: number;
+  grantType: string;
+  organizationName: string;
+  requestedAmount: number;
   status: string;
-  created_at: string;
+  createdAt: string;
 }
 
 interface Profile {
-  full_name: string;
-  account_status: string;
-  kyc_status: string;
+  fullName: string;
+  accountStatus: string;
+  kycStatus: string;
 }
 
 const Dashboard = () => {
@@ -50,6 +50,7 @@ const Dashboard = () => {
   const [grantApplications, setGrantApplications] = useState<GrantApplication[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [portfolioValue, setPortfolioValue] = useState<number>(0);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -69,40 +70,49 @@ const Dashboard = () => {
     setIsLoading(true);
     
     try {
-      // Fetch wallet
-      const { data: walletData } = await supabase
-        .from('wallets')
-        .select('balance, currency')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (walletData) {
-        setWallet(walletData);
+      // Fetch profile from backend API
+      const profileResponse = await api.get('/user/profile');
+      if (profileResponse.data) {
+        setProfile({
+          fullName: profileResponse.data.fullName || '',
+          accountStatus: profileResponse.data.accountStatus || 'pending',
+          kycStatus: profileResponse.data.kycStatus || 'pending'
+        });
       }
 
-      // Fetch grant applications
-      const { data: grantsData } = await supabase
-        .from('grant_applications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      
-      if (grantsData) {
-        setGrantApplications(grantsData);
+      // Fetch wallet from backend API
+      const walletResponse = await api.get('/user/wallet');
+      if (walletResponse.data) {
+        setWallet({
+          balance: parseFloat(walletResponse.data.balance) || 0,
+          currency: walletResponse.data.currency || 'USD'
+        });
       }
 
-      // Fetch profile
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('full_name, account_status, kyc_status')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (profileData) {
-        setProfile(profileData);
+      // Fetch holdings to calculate portfolio value
+      const holdingsResponse = await api.get('/trades/holdings');
+      if (holdingsResponse.data) {
+        const totalValue = holdingsResponse.data.reduce((sum: number, h: any) => {
+          return sum + parseFloat(h.currentValue || 0);
+        }, 0);
+        setPortfolioValue(totalValue);
       }
-    } catch (error) {
+
+      // Fetch grant applications from backend API
+      const grantsResponse = await api.get('/user/grants');
+      if (grantsResponse.data) {
+        setGrantApplications(grantsResponse.data.map((g: any) => ({
+          ...g,
+          requestedAmount: parseFloat(g.requestedAmount)
+        })));
+      }
+    } catch (error: any) {
       console.error('Error fetching user data:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to load user data",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -138,8 +148,7 @@ const Dashboard = () => {
     // Log the reach-out attempt for admin notification
     if (user) {
       try {
-        await supabase.from('activity_logs').insert({
-          user_id: user.id,
+        await api.post('/user/activity-logs', {
           action: 'grant_reach_out',
           details: { application_id: applicationId, grant_type: grantType }
         });
@@ -150,7 +159,15 @@ const Dashboard = () => {
     
     // Open email client
     const subject = encodeURIComponent(`Grant Application Inquiry - ${grantType}`);
-    const body = encodeURIComponent(`Hello,\n\nI am reaching out regarding my grant application (ID: ${applicationId}).\n\nI would like to inquire about the status of my application and discuss any additional steps needed.\n\nThank you for your time.\n\nBest regards`);
+    const body = encodeURIComponent(`Hello,
+
+I am reaching out regarding my grant application (ID: ${applicationId}).
+
+I would like to inquire about the status of my application and discuss any additional steps needed.
+
+Thank you for your time.
+
+Best regards`);
     window.location.href = `mailto:ranaeputerbaugh@yahoo.com?subject=${subject}&body=${body}`;
   };
 
@@ -184,7 +201,7 @@ const Dashboard = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-            Welcome, {profile?.full_name || 'User'}
+            Welcome back, {profile?.fullName || user?.fullName || 'User'}
           </h1>
           <p className="text-muted-foreground mt-1">
             Manage your account, investments, and grant applications
@@ -201,7 +218,7 @@ const Dashboard = () => {
             ? 'inactive'
             : hasApprovedGrant
               ? 'active'
-              : (profile?.account_status || 'pending');
+              : (profile?.accountStatus || 'pending');
 
           const reachOutGrant = grantApplications.find((g) => g.status !== 'approved');
 
@@ -234,7 +251,7 @@ const Dashboard = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleReachOut(reachOutGrant.id, reachOutGrant.grant_type)}
+                    onClick={() => handleReachOut(reachOutGrant.id, reachOutGrant.grantType)}
                   >
                     <Mail className="h-4 w-4 mr-1" />
                     Reach Out
@@ -280,7 +297,7 @@ const Dashboard = () => {
               </div>
               <span className="text-muted-foreground text-sm">Investments</span>
             </div>
-            <p className="text-2xl font-bold text-foreground">$0.00</p>
+            <p className="text-2xl font-bold text-foreground">${portfolioValue.toFixed(2)}</p>
             <p className="text-xs text-muted-foreground mt-1">Portfolio value</p>
           </div>
 
@@ -294,7 +311,7 @@ const Dashboard = () => {
             <p className="text-2xl font-bold text-foreground">
               ${grantApplications
                 .filter(g => g.status === 'pending' || g.status === 'under_review')
-                .reduce((sum, g) => sum + g.requested_amount, 0)
+                .reduce((sum, g) => sum + g.requestedAmount, 0)
                 .toLocaleString()}
             </p>
             <p className="text-xs text-muted-foreground mt-1">Awaiting approval</p>
@@ -394,14 +411,14 @@ const Dashboard = () => {
                     <tr key={application.id} className="hover:bg-muted/30 transition-colors">
                       <td className="px-6 py-4">
                         <span className="font-medium text-foreground capitalize">
-                          {application.grant_type.replace('-', ' ')} Grant
+                          {application.grantType.replace('-', ' ')} Grant
                         </span>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
-                        {application.organization_name}
+                        {application.organizationName}
                       </td>
                       <td className="px-6 py-4 text-right font-medium text-foreground">
-                        ${application.requested_amount.toLocaleString()}
+                        ${application.requestedAmount.toLocaleString()}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -416,14 +433,14 @@ const Dashboard = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
-                        {new Date(application.created_at).toLocaleDateString()}
+                        {new Date(application.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4">
                         {application.status !== 'approved' && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleReachOut(application.id, application.grant_type)}
+                            onClick={() => handleReachOut(application.id, application.grantType)}
                           >
                             <Mail className="h-4 w-4 mr-1" />
                             Reach Out

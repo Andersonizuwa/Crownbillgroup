@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import LiveTraderActivity from "@/components/LiveTraderActivity";
 import {
   ChartContainer,
   ChartTooltip,
@@ -44,17 +45,25 @@ interface Transaction {
   type: string;
   amount: number;
   status: string;
-  created_at: string;
+  createdAt: string;
   description: string | null;
 }
 
-// Mock portfolio data - in real app, this would come from the database
-const mockHoldings = [
-  { name: "Cash", value: 0, color: "hsl(152, 55%, 38%)", symbol: "USD" },
-  { name: "Stocks", value: 0, color: "hsl(220, 60%, 20%)", symbol: "STOCKS" },
-  { name: "Crypto", value: 0, color: "hsl(38, 92%, 50%)", symbol: "CRYPTO" },
-  { name: "Bonds", value: 0, color: "hsl(200, 80%, 50%)", symbol: "BONDS" },
-];
+interface Holding {
+  id: string;
+  assetType: string;
+  symbol: string;
+  assetName: string;
+  quantity: number;
+  averagePrice: number;
+  currentPrice: number;
+  totalCost: number;
+  currentValue: number;
+  profitLoss: number;
+  profitLossPct: number;
+}
+
+
 
 const mockPerformanceData = [
   { month: "Jan", value: 0 },
@@ -85,8 +94,8 @@ const Portfolio = () => {
   const navigate = useNavigate();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [realHoldings, setRealHoldings] = useState<Holding[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [holdings, setHoldings] = useState(mockHoldings);
   const [performanceData, setPerformanceData] = useState(mockPerformanceData);
 
   useEffect(() => {
@@ -108,33 +117,44 @@ const Portfolio = () => {
 
     try {
       // Fetch wallet
-      const { data: walletData } = await supabase
-        .from("wallets")
-        .select("balance, currency")
-        .eq("user_id", user.id)
-        .single();
+      const walletResponse = await api.get('/user/wallet');
+      const walletData = walletResponse.data;
 
       if (walletData) {
-        setWallet(walletData);
-        // Update holdings with actual wallet balance
-        setHoldings((prev) =>
-          prev.map((h) =>
-            h.name === "Cash" ? { ...h, value: walletData.balance || 0 } : h
-          )
-        );
+        setWallet({
+          balance: parseFloat(walletData.balance),
+          currency: walletData.currency
+        });
       }
 
-      // Fetch transactions for activity data
-      const { data: txData } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+      // Fetch transactions
+      const txResponse = await api.get('/user/transactions');
+      const txData = txResponse.data;
 
       if (txData) {
-        setTransactions(txData);
-        // Generate performance data based on transactions
-        generatePerformanceData(txData, walletData?.balance || 0);
+        const formattedTxs = txData.map((t: any) => ({
+          ...t,
+          amount: parseFloat(t.amount),
+          createdAt: t.createdAt
+        }));
+        setTransactions(formattedTxs);
+        generatePerformanceData(formattedTxs, parseFloat(walletData?.balance) || 0);
+      }
+
+      // Fetch real holdings with live prices
+      const holdingsResponse = await api.get('/trades/holdings/prices');
+      if (holdingsResponse.data.holdings) {
+        const formattedHoldings = holdingsResponse.data.holdings.map((h: any) => ({
+          ...h,
+          quantity: parseFloat(h.quantity),
+          averagePrice: parseFloat(h.averagePrice),
+          currentPrice: parseFloat(h.currentPrice),
+          totalCost: parseFloat(h.totalCost),
+          currentValue: parseFloat(h.currentValue),
+          profitLoss: parseFloat(h.profitLoss),
+          profitLossPct: parseFloat(h.profitLossPct)
+        }));
+        setRealHoldings(formattedHoldings);
       }
     } catch (error) {
       console.error("Error fetching portfolio data:", error);
@@ -153,7 +173,7 @@ const Portfolio = () => {
       // Simple simulation - in real app would calculate actual balances
       const monthIndex = (currentMonth - 5 + index + 12) % 12;
       const monthTxs = txs.filter((tx) => {
-        const txDate = new Date(tx.created_at);
+        const txDate = new Date(tx.createdAt);
         return txDate.getMonth() === monthIndex && tx.status === "completed";
       });
       
@@ -187,6 +207,33 @@ const Portfolio = () => {
     setPerformanceData(cumulativeData);
   };
 
+  // Auto-refresh holdings every 10 seconds
+  useEffect(() => {
+    if (!user) return;
+    
+    const interval = setInterval(() => {
+      fetchPortfolioData();
+    }, 10000);
+    
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Calculate portfolio summary
+  const cashBalance = wallet?.balance || 0;
+  const stocksValue = realHoldings
+    .filter(h => h.assetType === 'stock')
+    .reduce((sum, h) => sum + h.currentValue, 0);
+  const cryptoValue = realHoldings
+    .filter(h => h.assetType === 'crypto')
+    .reduce((sum, h) => sum + h.currentValue, 0);
+  
+  const holdings = [
+    { name: "Cash", value: cashBalance, color: "hsl(152, 55%, 38%)", symbol: "USD" },
+    { name: "Stocks", value: stocksValue, color: "hsl(220, 60%, 20%)", symbol: "STOCKS" },
+    { name: "Crypto", value: cryptoValue, color: "hsl(38, 92%, 50%)", symbol: "CRYPTO" },
+    { name: "Bonds", value: 0, color: "hsl(200, 80%, 50%)", symbol: "BONDS" },
+  ];
+
   const totalValue = holdings.reduce((sum, h) => sum + h.value, 0);
   const holdingsWithPercentage = holdings.map((h) => ({
     ...h,
@@ -200,6 +247,11 @@ const Portfolio = () => {
   const totalWithdrawals = transactions
     .filter((t) => t.type === "withdrawal" && t.status === "completed")
     .reduce((sum, t) => sum + t.amount, 0);
+
+  // Calculate total portfolio gain/loss
+  const totalProfitLoss = realHoldings.reduce((sum, h) => sum + h.profitLoss, 0);
+  const totalInvestment = realHoldings.reduce((sum, h) => sum + h.totalCost, 0);
+  const totalProfitLossPct = totalInvestment > 0 ? (totalProfitLoss / totalInvestment) * 100 : 0;
 
   const monthlyActivity = [
     { name: "Deposits", value: totalDeposits },
@@ -233,7 +285,7 @@ const Portfolio = () => {
         </div>
 
         {/* Portfolio Summary Cards */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <Card className="card-elevated">
             <CardContent className="p-6">
               <div className="flex items-center gap-3 mb-3">
@@ -296,6 +348,26 @@ const Portfolio = () => {
               <p className="text-xs text-muted-foreground mt-1">{wallet?.currency || "USD"}</p>
             </CardContent>
           </Card>
+
+          <Card className="card-elevated">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                  {totalProfitLoss >= 0 ? (
+                    <TrendingUp className="h-5 w-5 text-accent" />
+                  ) : (
+                    <TrendingDown className="h-5 w-5 text-destructive" />
+                  )}
+                </div>
+                <span className="text-muted-foreground text-sm">Total Gain/Loss</span>
+              </div>
+              <p className={`text-lg font-bold ${totalProfitLoss >= 0 ? "text-accent" : "text-destructive"}`}>
+                {totalProfitLoss >= 0 ? "+" : ""}${totalProfitLoss.toFixed(2)}
+                <span className="text-base font-normal"> ({totalProfitLossPct >= 0 ? "+" : ""}{totalProfitLossPct.toFixed(2)}%)</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Portfolio performance</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Charts Section */}
@@ -316,7 +388,15 @@ const Portfolio = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            <div className="grid lg:grid-cols-2 gap-6">
+            <div className="grid lg:grid-cols-3 gap-6">
+              {/* Live Trader Activity */}
+              <div className="lg:col-span-1">
+                <LiveTraderActivity />
+              </div>
+              
+              {/* Portfolio Charts */}
+              <div className="lg:col-span-2">
+                <div className="grid lg:grid-cols-2 gap-6">
               {/* Pie Chart */}
               <Card className="card-elevated-lg">
                 <CardHeader>
@@ -370,39 +450,82 @@ const Portfolio = () => {
                   <CardTitle className="text-lg">Holdings</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {holdingsWithPercentage.map((holding, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 rounded-lg bg-muted/30"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: holding.color }}
-                          />
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {holding.name}
+                  {realHoldings.length > 0 ? (
+                    <div className="space-y-4">
+                      {realHoldings.map((holding) => (
+                        <div
+                          key={holding.id}
+                          className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-foreground text-lg">
+                                {holding.symbol}
+                              </span>
+                              <span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary">
+                                {holding.assetType.toUpperCase()}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {holding.assetName}
                             </p>
-                            <p className="text-xs text-muted-foreground">
-                              {holding.symbol}
+                            <div className="flex gap-4 mt-2 text-xs">
+                              <div>
+                                <span className="text-muted-foreground">Qty: </span>
+                                <span className="font-medium text-foreground">
+                                  {holding.quantity.toFixed(8)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Avg: </span>
+                                <span className="font-medium text-foreground">
+                                  ${holding.averagePrice.toFixed(2)}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Now: </span>
+                                <span className="font-medium text-foreground">
+                                  ${holding.currentPrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-foreground">
+                              ${holding.currentValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                            </p>
+                            <div className={`flex items-center justify-end gap-1 mt-1 ${
+                              holding.profitLoss >= 0 ? "text-accent" : "text-destructive"
+                            }`}>
+                              {holding.profitLoss >= 0 ? (
+                                <TrendingUp className="h-4 w-4" />
+                              ) : (
+                                <TrendingDown className="h-4 w-4" />
+                              )}
+                              <span className="font-semibold">
+                                {holding.profitLoss >= 0 ? "+" : ""}${holding.profitLoss.toFixed(2)}
+                              </span>
+                            </div>
+                            <p className={`text-sm font-medium ${
+                              holding.profitLossPct >= 0 ? "text-accent" : "text-destructive"
+                            }`}>
+                              {holding.profitLossPct >= 0 ? "+" : ""}{holding.profitLossPct.toFixed(2)}%
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-medium text-foreground">
-                            ${holding.value.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {holding.percentage}%
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <PieChartIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No holdings yet</p>
+                      <p className="text-sm">Start trading to build your portfolio</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
@@ -521,7 +644,7 @@ const Portfolio = () => {
                               {tx.type}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(tx.created_at).toLocaleDateString()}
+                              {new Date(tx.createdAt).toLocaleDateString()}
                             </p>
                           </div>
                         </div>

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfirm } from "@/contexts/ConfirmContext";
 import {
   Select,
   SelectContent,
@@ -25,16 +26,16 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 
 interface Withdrawal {
   id: string;
   amount: number;
-  withdrawal_method: string;
-  wallet_address: string | null;
-  bank_details: string | null;
+  withdrawalMethod: string;
+  walletAddress: string | null;
+  bankDetails: string | null;
   status: string;
-  created_at: string;
+  createdAt: string;
 }
 
 interface WalletData {
@@ -44,6 +45,7 @@ interface WalletData {
 
 const Withdraw = () => {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [withdrawalMethod, setWithdrawalMethod] = useState<"crypto" | "bank">("crypto");
@@ -74,28 +76,32 @@ const Withdraw = () => {
   const fetchWallet = async () => {
     if (!user) return;
     
-    const { data } = await supabase
-      .from('wallets')
-      .select('balance, currency')
-      .eq('user_id', user.id)
-      .single();
-
-    if (data) {
-      setWallet(data);
+    try {
+      const { data } = await api.get('/user/wallet');
+      if (data) {
+        setWallet({
+          balance: parseFloat(data.balance),
+          currency: data.currency
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching wallet:', error);
     }
   };
 
   const fetchWithdrawals = async () => {
     if (!user) return;
     
-    const { data, error } = await supabase
-      .from('withdrawals')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (data && !error) {
-      setWithdrawals(data);
+    try {
+      const { data } = await api.get('/user/withdrawals');
+      if (data) {
+        setWithdrawals(data.map((w: any) => ({
+          ...w,
+          amount: parseFloat(w.amount)
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching withdrawals:', error);
     }
   };
 
@@ -140,19 +146,23 @@ const Withdraw = () => {
       return;
     }
 
+    const confirmed = await confirm({
+      title: "Confirm Withdrawal",
+      description: `Are you sure you want to withdraw $${withdrawAmount.toLocaleString()}? This request will be sent to our team for approval.`,
+      confirmText: "Confirm Withdrawal"
+    });
+
+    if (!confirmed) return;
+
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase.from('withdrawals').insert({
-        user_id: user.id,
+      await api.post('/user/withdrawals', {
         amount: withdrawAmount,
-        withdrawal_method: withdrawalMethod === 'crypto' ? `crypto_${selectedCrypto}` : 'bank_transfer',
-        wallet_address: withdrawalMethod === 'crypto' ? walletAddress : null,
-        bank_details: withdrawalMethod === 'bank' ? bankDetails : null,
-        status: 'pending'
+        withdrawalMethod: withdrawalMethod === 'crypto' ? `crypto_${selectedCrypto}` : 'bank_transfer',
+        walletAddress: withdrawalMethod === 'crypto' ? walletAddress : null,
+        bankDetails: withdrawalMethod === 'bank' ? bankDetails : null
       });
-
-      if (error) throw error;
 
       toast({
         title: "Withdrawal Request Submitted!",
@@ -414,11 +424,11 @@ const Withdraw = () => {
                     {withdrawals.map((withdrawal) => (
                       <tr key={withdrawal.id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-6 py-4 text-muted-foreground">
-                          {new Date(withdrawal.created_at).toLocaleDateString()}
+                          {new Date(withdrawal.createdAt).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4">
                           <span className="font-medium text-foreground capitalize">
-                            {withdrawal.withdrawal_method.replace('_', ' ').replace('crypto ', '')}
+                            {withdrawal.withdrawalMethod.replace('_', ' ').replace('crypto ', '')}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right font-medium text-foreground">

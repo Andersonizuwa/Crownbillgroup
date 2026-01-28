@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { useConfirm } from "@/contexts/ConfirmContext";
+import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,47 +58,49 @@ import { Badge } from "@/components/ui/badge";
 
 interface UserProfile {
   id: string;
-  user_id: string;
+  userId: string;
   email: string;
-  full_name: string | null;
+  fullName: string | null;
   phone: string | null;
-  account_status: 'active' | 'inactive' | 'pending';
-  kyc_status: string;
-  created_at: string;
-  date_of_birth: string | null;
+  accountStatus: 'active' | 'inactive' | 'pending';
+  kycStatus: string;
+  createdAt: string;
+  dateOfBirth: string | null;
   nationality: string | null;
-  country_of_residence: string | null;
-  marital_status: string | null;
-  tax_id: string | null;
-  is_pep: boolean | null;
-  pep_details: string | null;
-  has_business: boolean | null;
-  business_name: string | null;
-  business_type: string | null;
-  business_industry: string | null;
-  business_tax_id: string | null;
+  countryOfResidence: string | null;
+  maritalStatus: string | null;
+  taxId: string | null;
+  isPep: boolean | null;
+  pepDetails: string | null;
+  hasBusiness: boolean | null;
+  businessName: string | null;
+  businessType: string | null;
+  businessIndustry: string | null;
+  businessTaxId: string | null;
+  roles: string[];
 }
 
 interface UserWallet {
   id: string;
-  user_id: string;
+  userId: string;
   balance: number;
   currency: string;
 }
 
 interface CopyTradeAttempt {
   id: string;
-  user_id: string;
-  trader_name: string;
-  asset_symbol: string;
-  asset_type: string;
-  action_type: string;
-  profit_percentage: number | null;
-  created_at: string;
+  userId: string;
+  traderName: string;
+  assetSymbol: string;
+  assetType: string;
+  actionType: string;
+  profitPercentage: number | null;
+  createdAt: string;
 }
 
 const AdminDashboard = () => {
   const { user, isAdmin, signOut, isLoading } = useAuth();
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -130,13 +133,24 @@ const AdminDashboard = () => {
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setUsers(data || []);
+      const { data } = await api.get('/admin/users');
+      // Format backend response to match frontend interface
+      setUsers(data.map((u: any) => {
+        const mappedUser = {
+          ...u.profile,
+          email: u.email,
+          userId: u.id,
+          roles: u.roles?.map((r: any) => r.role) || []
+        };
+        
+        // Debug logging for admin user
+        if (u.email === 'admin@crownbill.com') {
+          console.log('Admin user roles:', u.roles);
+          console.log('Mapped roles:', mappedUser.roles);
+        }
+        
+        return mappedUser;
+      }));
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -151,12 +165,11 @@ const AdminDashboard = () => {
 
   const fetchWallets = async () => {
     try {
-      const { data, error } = await supabase
-        .from('wallets')
-        .select('*');
-
-      if (error) throw error;
-      setWallets(data || []);
+      const { data } = await api.get('/admin/wallets');
+      setWallets(data.map((w: any) => ({
+        ...w,
+        balance: parseFloat(w.balance)
+      })));
     } catch (error) {
       console.error('Error fetching wallets:', error);
     }
@@ -164,44 +177,72 @@ const AdminDashboard = () => {
 
   const fetchCopyTradeAttempts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('copy_trade_attempts')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setCopyTradeAttempts(data || []);
+      const { data } = await api.get('/admin/copy-trade-attempts');
+      setCopyTradeAttempts(data);
     } catch (error) {
       console.error('Error fetching copy trade attempts:', error);
     }
   };
 
   const getUserEmail = (userId: string) => {
-    const user = users.find(u => u.user_id === userId);
+    const user = users.find(u => u.userId === userId);
     return user?.email || 'Unknown';
   };
 
   const getUserName = (userId: string) => {
-    const user = users.find(u => u.user_id === userId);
-    return user?.full_name || 'Unknown';
+    const user = users.find(u => u.userId === userId);
+    return user?.fullName || 'Unknown';
   };
 
   const sendFollowUpEmail = (email: string, traderName: string, assetSymbol: string) => {
     const subject = encodeURIComponent(`Follow-up: Copy Trade Interest - ${traderName}`);
-    const body = encodeURIComponent(`Hello,\n\nWe noticed you were interested in copying the trade for ${assetSymbol} by ${traderName}.\n\nWe would like to discuss this opportunity with you.\n\nBest regards,\nFidelity Team`);
+    const body = encodeURIComponent(`Hello,
+
+We noticed you were interested in copying the trade for ${assetSymbol} by ${traderName}.
+
+We would like to discuss this opportunity with you.
+
+Best regards,
+Fidelity Team`);
     window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+  };
+
+  const deleteCopyTradeAttempt = async (id: string) => {
+    const confirmed = await confirm({
+      title: "Delete Copy Trade Attempt",
+      description: "Are you sure you want to delete this copy trade attempt? This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive"
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await api.delete(`/admin/copy-trade-attempts/${id}`);
+      
+      toast({
+        title: "Success",
+        description: "Copy trade attempt deleted successfully",
+      });
+
+      fetchCopyTradeAttempts();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || error.message || "Failed to delete copy trade attempt",
+        variant: "destructive",
+      });
+    }
   };
 
   const createUser = async () => {
     try {
-      // Create user via Supabase Auth Admin API (this is a simplified version)
-      // In production, you'd use an edge function with service role key
-      const { data, error } = await supabase.auth.signUp({
+      await api.post('/admin/users', {
         email: newUserData.email,
         password: newUserData.password,
       });
-
-      if (error) throw error;
 
       toast({
         title: "Success",
@@ -215,7 +256,7 @@ const AdminDashboard = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to create user",
+        description: error.response?.data?.error || error.message || "Failed to create user",
         variant: "destructive",
       });
     }
@@ -225,20 +266,8 @@ const AdminDashboard = () => {
     if (!selectedWallet) return;
 
     try {
-      const { error } = await supabase
-        .from('wallets')
-        .update({ balance: parseFloat(walletAmount) })
-        .eq('id', selectedWallet.id);
-
-      if (error) throw error;
-
-      // Log the transaction
-      await supabase.from('transactions').insert({
-        user_id: selectedWallet.user_id,
-        type: 'deposit',
-        amount: parseFloat(walletAmount) - selectedWallet.balance,
-        description: 'Admin wallet adjustment',
-        status: 'completed',
+      await api.patch(`/admin/wallets/${selectedWallet.id}`, {
+        balance: parseFloat(walletAmount)
       });
 
       toast({
@@ -253,7 +282,7 @@ const AdminDashboard = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update wallet",
+        description: error.response?.data?.error || error.message || "Failed to update wallet",
         variant: "destructive",
       });
     }
@@ -261,12 +290,7 @@ const AdminDashboard = () => {
 
   const updateAccountStatus = async (userId: string, status: 'active' | 'inactive' | 'pending') => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ account_status: status })
-        .eq('user_id', userId);
-
-      if (error) throw error;
+      await api.patch(`/admin/users/${userId}/status`, { status });
 
       toast({
         title: "Success",
@@ -277,25 +301,26 @@ const AdminDashboard = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update status",
+        description: error.response?.data?.error || error.message || "Failed to update status",
         variant: "destructive",
       });
     }
   };
 
   const deleteUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+    const confirmed = await confirm({
+      title: "Delete User",
+      description: "Are you sure you want to delete this user? This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "destructive"
+    });
+
+    if (!confirmed) {
       return;
     }
 
     try {
-      // Delete from profiles (will cascade to other tables)
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('user_id', userId);
-
-      if (error) throw error;
+      await api.delete(`/admin/users/${userId}`);
 
       toast({
         title: "Success",
@@ -307,14 +332,14 @@ const AdminDashboard = () => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete user",
+        description: error.response?.data?.error || error.message || "Failed to delete user",
         variant: "destructive",
       });
     }
   };
 
   const getWalletForUser = (userId: string) => {
-    return wallets.find(w => w.user_id === userId);
+    return wallets.find(w => w.userId === userId);
   };
 
   const handleSignOut = async () => {
@@ -495,46 +520,52 @@ const AdminDashboard = () => {
                   </TableHeader>
                   <TableBody>
                     {users.map((userProfile) => {
-                      const wallet = getWalletForUser(userProfile.user_id);
+                      const wallet = getWalletForUser(userProfile.userId);
+                      const isSystemAdmin = userProfile.roles?.includes('admin') || userProfile.email === 'admin@crownbill.com';
                       return (
                         <TableRow key={userProfile.id}>
                           <TableCell className="font-medium">{userProfile.email}</TableCell>
-                          <TableCell>{userProfile.full_name || '-'}</TableCell>
+                          <TableCell>{userProfile.fullName || '-'}</TableCell>
+                          {isSystemAdmin ? (
+                            <>
+                              <TableCell><Badge variant="outline">System Admin</Badge></TableCell>
+                              <TableCell><Badge variant="outline">System Admin</Badge></TableCell>
+                              <TableCell><Badge variant="outline">System Admin</Badge></TableCell>
+                            </>
+                          ) : (
+                            <>
+                              <TableCell>
+                                <Select
+                                  value={userProfile.accountStatus}
+                                  onValueChange={(value: 'active' | 'inactive' | 'pending') =>
+                                    updateAccountStatus(userProfile.userId, value)
+                                  }
+                                >
+                                  <SelectTrigger className="w-28">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="active">Active</SelectItem>
+                                    <SelectItem value="inactive">Inactive</SelectItem>
+                                    <SelectItem value="pending">Pending</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                              <TableCell>
+                                {userProfile.kycStatus === 'approved'
+                                  ? <Badge variant="default">Approved</Badge>
+                                  : userProfile.kycStatus === 'rejected'
+                                  ? <Badge variant="destructive">Rejected</Badge>
+                                  : <Badge variant="secondary">{userProfile.kycStatus}</Badge>
+                                }
+                              </TableCell>
+                              <TableCell>
+                                `$${wallet?.balance?.toFixed(2) || '0.00'}`
+                              </TableCell>
+                            </>
+                          )}
                           <TableCell>
-                            <Select
-                              value={userProfile.account_status}
-                              onValueChange={(value: 'active' | 'inactive' | 'pending') =>
-                                updateAccountStatus(userProfile.user_id, value)
-                              }
-                            >
-                              <SelectTrigger className="w-28">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="active">Active</SelectItem>
-                                <SelectItem value="inactive">Inactive</SelectItem>
-                                <SelectItem value="pending">Pending</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                userProfile.kyc_status === 'approved'
-                                  ? 'default'
-                                  : userProfile.kyc_status === 'rejected'
-                                  ? 'destructive'
-                                  : 'secondary'
-                              }
-                            >
-                              {userProfile.kyc_status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            ${wallet?.balance?.toFixed(2) || '0.00'}
-                          </TableCell>
-                          <TableCell>
-                            {new Date(userProfile.created_at).toLocaleDateString()}
+                            {new Date(userProfile.createdAt).toLocaleDateString()}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center space-x-2">
@@ -548,27 +579,34 @@ const AdminDashboard = () => {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  const w = getWalletForUser(userProfile.user_id);
-                                  if (w) {
-                                    setSelectedWallet(w);
-                                    setWalletAmount(w.balance.toString());
-                                    setIsEditWalletOpen(true);
-                                  }
-                                }}
-                              >
-                                <DollarSign className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteUser(userProfile.user_id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                              {!isSystemAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const w = getWalletForUser(userProfile.userId);
+                                    if (w) {
+                                      setSelectedWallet(w);
+                                      setWalletAmount(w.balance.toString());
+                                      setIsEditWalletOpen(true);
+                                    }
+                                  }}
+                                >
+                                  <DollarSign className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {!isSystemAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteUser(userProfile.userId)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              )}
+                              {isSystemAdmin && (
+                                <Badge variant="outline">Protected</Badge>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -629,39 +667,48 @@ const AdminDashboard = () => {
                   <TableBody>
                     {copyTradeAttempts.map((attempt) => (
                       <TableRow key={attempt.id}>
-                        <TableCell>{new Date(attempt.created_at).toLocaleString()}</TableCell>
-                        <TableCell className="font-medium">{getUserEmail(attempt.user_id)}</TableCell>
-                        <TableCell>{getUserName(attempt.user_id)}</TableCell>
-                        <TableCell>{attempt.trader_name}</TableCell>
-                        <TableCell>{attempt.asset_symbol}</TableCell>
+                        <TableCell>{new Date(attempt.createdAt).toLocaleString()}</TableCell>
+                        <TableCell className="font-medium">{getUserEmail(attempt.userId)}</TableCell>
+                        <TableCell>{getUserName(attempt.userId)}</TableCell>
+                        <TableCell>{attempt.traderName}</TableCell>
+                        <TableCell>{attempt.assetSymbol}</TableCell>
                         <TableCell>
-                          <Badge variant="secondary">{attempt.asset_type}</Badge>
+                          <Badge variant="secondary">{attempt.assetType}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={attempt.action_type === 'copy_trade' ? 'default' : 'outline'}>
-                            {attempt.action_type === 'copy_trade' ? 'Copy Trade' : 'Analyze'}
+                          <Badge variant={attempt.actionType === 'copy_trade' ? 'default' : 'outline'}>
+                            {attempt.actionType === 'copy_trade' ? 'Copy Trade' : 'Analyze'}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {attempt.profit_percentage !== null ? (
-                            <span className={attempt.profit_percentage >= 0 ? 'text-accent' : 'text-destructive'}>
-                              {attempt.profit_percentage >= 0 ? '+' : ''}{attempt.profit_percentage}%
+                          {attempt.profitPercentage !== null ? (
+                            <span className={attempt.profitPercentage >= 0 ? 'text-accent' : 'text-destructive'}>
+                              {attempt.profitPercentage >= 0 ? '+' : ''}{attempt.profitPercentage}%
                             </span>
                           ) : '-'}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => sendFollowUpEmail(
-                              getUserEmail(attempt.user_id),
-                              attempt.trader_name,
-                              attempt.asset_symbol
-                            )}
-                          >
-                            <Mail className="h-4 w-4 mr-1" />
-                            Email
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => sendFollowUpEmail(
+                                getUserEmail(attempt.userId),
+                                attempt.traderName,
+                                attempt.assetSymbol
+                              )}
+                            >
+                              <Mail className="h-4 w-4 mr-1" />
+                              Email
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => deleteCopyTradeAttempt(attempt.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -731,7 +778,7 @@ const AdminDashboard = () => {
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Full Name</Label>
-                    <p className="font-medium">{selectedUser.full_name || '-'}</p>
+                    <p className="font-medium">{selectedUser.fullName || '-'}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Phone</Label>
@@ -739,7 +786,7 @@ const AdminDashboard = () => {
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Date of Birth</Label>
-                    <p className="font-medium">{selectedUser.date_of_birth || '-'}</p>
+                    <p className="font-medium">{selectedUser.dateOfBirth || '-'}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Nationality</Label>
@@ -747,19 +794,19 @@ const AdminDashboard = () => {
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Country of Residence</Label>
-                    <p className="font-medium capitalize">{selectedUser.country_of_residence || '-'}</p>
+                    <p className="font-medium capitalize">{selectedUser.countryOfResidence || '-'}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Marital Status</Label>
-                    <p className="font-medium capitalize">{selectedUser.marital_status || '-'}</p>
+                    <p className="font-medium capitalize">{selectedUser.maritalStatus || '-'}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Tax ID</Label>
-                    <p className="font-medium">{selectedUser.tax_id || '-'}</p>
+                    <p className="font-medium">{selectedUser.taxId || '-'}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Created</Label>
-                    <p className="font-medium">{new Date(selectedUser.created_at).toLocaleString()}</p>
+                    <p className="font-medium">{new Date(selectedUser.createdAt).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -770,11 +817,11 @@ const AdminDashboard = () => {
                 <div className="grid grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
                   <div>
                     <Label className="text-muted-foreground text-xs">Account Status</Label>
-                    <p className="font-medium capitalize">{selectedUser.account_status}</p>
+                    <p className="font-medium capitalize">{selectedUser.accountStatus}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">KYC Status</Label>
-                    <p className="font-medium capitalize">{selectedUser.kyc_status}</p>
+                    <p className="font-medium capitalize">{selectedUser.kycStatus}</p>
                   </div>
                 </div>
               </div>
@@ -786,12 +833,12 @@ const AdminDashboard = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-muted-foreground text-xs">Is Politically Exposed Person</Label>
-                      <p className="font-medium">{selectedUser.is_pep ? 'Yes' : 'No'}</p>
+                      <p className="font-medium">{selectedUser.isPep ? 'Yes' : 'No'}</p>
                     </div>
-                    {selectedUser.is_pep && selectedUser.pep_details && (
+                    {selectedUser.isPep && selectedUser.pepDetails && (
                       <div className="col-span-2">
                         <Label className="text-muted-foreground text-xs">PEP Details</Label>
-                        <p className="font-medium">{selectedUser.pep_details}</p>
+                        <p className="font-medium">{selectedUser.pepDetails}</p>
                       </div>
                     )}
                   </div>
@@ -802,23 +849,23 @@ const AdminDashboard = () => {
               <div>
                 <h3 className="font-semibold text-lg mb-3 text-foreground">Business Information</h3>
                 <div className="p-4 bg-muted/30 rounded-lg">
-                  {selectedUser.has_business ? (
+                  {selectedUser.hasBusiness ? (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="text-muted-foreground text-xs">Business Name</Label>
-                        <p className="font-medium">{selectedUser.business_name || '-'}</p>
+                        <p className="font-medium">{selectedUser.businessName || '-'}</p>
                       </div>
                       <div>
                         <Label className="text-muted-foreground text-xs">Business Type</Label>
-                        <p className="font-medium capitalize">{selectedUser.business_type?.replace('-', ' ') || '-'}</p>
+                        <p className="font-medium capitalize">{selectedUser.businessType?.replace('-', ' ') || '-'}</p>
                       </div>
                       <div>
                         <Label className="text-muted-foreground text-xs">Industry</Label>
-                        <p className="font-medium capitalize">{selectedUser.business_industry?.replace('-', ' ') || '-'}</p>
+                        <p className="font-medium capitalize">{selectedUser.businessIndustry?.replace('-', ' ') || '-'}</p>
                       </div>
                       <div>
                         <Label className="text-muted-foreground text-xs">Business Tax ID (EIN/SSN)</Label>
-                        <p className="font-medium">{selectedUser.business_tax_id || '-'}</p>
+                        <p className="font-medium">{selectedUser.businessTaxId || '-'}</p>
                       </div>
                     </div>
                   ) : (
@@ -850,7 +897,7 @@ const WalletsTab = ({
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   const getUserEmail = (userId: string) => {
-    const user = users.find(u => u.user_id === userId);
+    const user = users.find(u => u.userId === userId);
     return user?.email || 'Unknown';
   };
 
@@ -858,21 +905,8 @@ const WalletsTab = ({
     if (!selectedWallet) return;
 
     try {
-      const { error } = await supabase
-        .from('wallets')
-        .update({ balance: parseFloat(walletAmount) })
-        .eq('id', selectedWallet.id);
-
-      if (error) throw error;
-
-      // Log the transaction
-      const amountDiff = parseFloat(walletAmount) - selectedWallet.balance;
-      await supabase.from('transactions').insert({
-        user_id: selectedWallet.user_id,
-        type: amountDiff >= 0 ? 'deposit' : 'withdrawal',
-        amount: Math.abs(amountDiff),
-        description: 'Admin wallet adjustment',
-        status: 'completed',
+      await api.patch(`/admin/wallets/${selectedWallet.id}`, {
+        balance: parseFloat(walletAmount)
       });
 
       toast({
@@ -887,7 +921,7 @@ const WalletsTab = ({
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update wallet",
+        description: error.response?.data?.error || error.message || "Failed to update wallet",
         variant: "destructive",
       });
     }
@@ -911,9 +945,14 @@ const WalletsTab = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {wallets.map((wallet) => (
+            {wallets
+              .filter(wallet => {
+                const user = users.find(u => u.userId === wallet.userId);
+                return !user?.roles?.includes('admin') && user?.email !== 'admin@crownbill.com';
+              })
+              .map((wallet) => (
               <TableRow key={wallet.id}>
-                <TableCell className="font-medium">{getUserEmail(wallet.user_id)}</TableCell>
+                <TableCell className="font-medium">{getUserEmail(wallet.userId)}</TableCell>
                 <TableCell className="text-accent font-semibold">
                   ${wallet.balance?.toFixed(2) || '0.00'}
                 </TableCell>
@@ -943,7 +982,7 @@ const WalletsTab = ({
           <DialogHeader>
             <DialogTitle>Edit Wallet Balance</DialogTitle>
             <DialogDescription>
-              Update the wallet balance for {selectedWallet && getUserEmail(selectedWallet.user_id)}.
+              Update the wallet balance for {selectedWallet && getUserEmail(selectedWallet.userId)}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -982,33 +1021,30 @@ const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
   const [endDate, setEndDate] = useState("");
 
   const getUserEmail = (userId: string) => {
-    const user = users.find(u => u.user_id === userId);
+    const user = users.find(u => u.userId === userId);
     return user?.email || 'Unknown';
   };
 
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const response = await api.get('/admin/transactions');
+      let data = response.data;
 
       if (selectedUserId !== "all") {
-        query = query.eq('user_id', selectedUserId);
+        data = data.filter((tx: any) => tx.userId === selectedUserId);
       }
 
       if (startDate) {
-        query = query.gte('created_at', startDate);
+        const start = new Date(startDate);
+        data = data.filter((tx: any) => new Date(tx.createdAt) >= start);
       }
 
       if (endDate) {
-        query = query.lte('created_at', endDate + 'T23:59:59');
+        const end = new Date(endDate + 'T23:59:59');
+        data = data.filter((tx: any) => new Date(tx.createdAt) <= end);
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
       setTransactions(data || []);
     } catch (error) {
       console.error('Error fetching transactions:', error);
@@ -1040,7 +1076,7 @@ const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
               <SelectContent>
                 <SelectItem value="all">All Users</SelectItem>
                 {users.map((user) => (
-                  <SelectItem key={user.user_id} value={user.user_id}>
+                  <SelectItem key={user.userId} value={user.userId}>
                     {user.email}
                   </SelectItem>
                 ))}
@@ -1087,8 +1123,8 @@ const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
             <TableBody>
               {transactions.map((tx) => (
                 <TableRow key={tx.id}>
-                  <TableCell>{new Date(tx.created_at).toLocaleString()}</TableCell>
-                  <TableCell>{getUserEmail(tx.user_id)}</TableCell>
+                  <TableCell>{new Date(tx.createdAt).toLocaleString()}</TableCell>
+                  <TableCell>{getUserEmail(tx.userId)}</TableCell>
                   <TableCell className="capitalize">{tx.type}</TableCell>
                   <TableCell className={tx.type === 'withdrawal' ? 'text-destructive' : 'text-accent'}>
                     {tx.type === 'withdrawal' ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
@@ -1127,20 +1163,20 @@ const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
 // Grant Applications Tab Component
 interface GrantApplication {
   id: string;
-  user_id: string;
-  grant_type: string;
-  organization_name: string;
-  organization_type: string | null;
-  contact_name: string;
-  contact_email: string;
-  contact_phone: string | null;
-  project_description: string;
-  requested_amount: number;
+  userId: string;
+  grantType: string;
+  organizationName: string;
+  organizationType: string | null;
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string | null;
+  projectDescription: string;
+  requestedAmount: number;
   status: string;
-  admin_notes: string | null;
-  reviewed_at: string | null;
-  reviewed_by: string | null;
-  created_at: string;
+  adminNotes: string | null;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  createdAt: string;
 }
 
 const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
@@ -1156,13 +1192,13 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
   const [searchQuery, setSearchQuery] = useState("");
 
   const getUserEmail = (userId: string) => {
-    const user = users.find(u => u.user_id === userId);
+    const user = users.find(u => u.userId === userId);
     return user?.email || 'Unknown';
   };
 
   const getUserName = (userId: string) => {
-    const user = users.find(u => u.user_id === userId);
-    return user?.full_name || 'Unknown';
+    const user = users.find(u => u.userId === userId);
+    return user?.fullName || 'Unknown';
   };
 
   const exportToCSV = (data: GrantApplication[], userList: UserProfile[]) => {
@@ -1176,7 +1212,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
     }
 
     const getUserEmailForExport = (userId: string) => {
-      const user = userList.find(u => u.user_id === userId);
+      const user = userList.find(u => u.userId === userId);
       return user?.email || 'Unknown';
     };
 
@@ -1198,18 +1234,18 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
 
     const csvRows = data.map(app => [
       app.id,
-      new Date(app.created_at).toLocaleDateString(),
-      getUserEmailForExport(app.user_id),
-      `"${app.organization_name.replace(/"/g, '""')}"`,
-      app.organization_type || '',
-      app.grant_type.replace('-', ' '),
-      `"${app.contact_name.replace(/"/g, '""')}"`,
-      app.contact_email,
-      app.contact_phone || '',
-      app.requested_amount,
+      new Date(app.createdAt).toLocaleDateString(),
+      getUserEmailForExport(app.userId),
+      `"${app.organizationName.replace(/"/g, '""')}"`,
+      app.organizationType || '',
+      app.grantType.replace('-', ' '),
+      `"${app.contactName.replace(/"/g, '""')}"`,
+      app.contactEmail,
+      app.contactPhone || '',
+      app.requestedAmount,
       app.status,
-      app.admin_notes ? `"${app.admin_notes.replace(/"/g, '""')}"` : '',
-      app.reviewed_at ? new Date(app.reviewed_at).toLocaleDateString() : ''
+      app.adminNotes ? `"${app.adminNotes.replace(/"/g, '""')}"` : '',
+      app.reviewedAt ? new Date(app.reviewedAt).toLocaleDateString() : ''
     ]);
 
     const csvContent = [
@@ -1236,12 +1272,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
   const fetchApplications = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('grant_applications')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const { data } = await api.get('/admin/grants');
       setAllApplications(data || []);
     } catch (error) {
       console.error('Error fetching applications:', error);
@@ -1264,10 +1295,10 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(app => 
-        app.organization_name.toLowerCase().includes(query) ||
-        app.contact_name.toLowerCase().includes(query) ||
-        app.contact_email.toLowerCase().includes(query) ||
-        getUserEmail(app.user_id).toLowerCase().includes(query)
+        app.organizationName.toLowerCase().includes(query) ||
+        app.contactName.toLowerCase().includes(query) ||
+        app.contactEmail.toLowerCase().includes(query) ||
+        getUserEmail(app.userId).toLowerCase().includes(query)
       );
     }
     
@@ -1276,16 +1307,10 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
 
   const updateApplicationStatus = async (applicationId: string, newStatus: string) => {
     try {
-      const { error } = await supabase
-        .from('grant_applications')
-        .update({ 
-          status: newStatus,
-          admin_notes: adminNotes || null,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq('id', applicationId);
-
-      if (error) throw error;
+      await api.patch(`/admin/grants/${applicationId}`, { 
+        status: newStatus,
+        adminNotes: adminNotes || null,
+      });
 
       toast({
         title: "Success",
@@ -1299,7 +1324,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update application",
+        description: error.response?.data?.error || error.message || "Failed to update application",
         variant: "destructive",
       });
     }
@@ -1325,8 +1350,8 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
     underReview: allApplications.filter(a => a.status === 'under_review').length,
     approved: allApplications.filter(a => a.status === 'approved').length,
     rejected: allApplications.filter(a => a.status === 'rejected').length,
-    totalRequested: allApplications.reduce((sum, a) => sum + Number(a.requested_amount), 0),
-    totalApproved: allApplications.filter(a => a.status === 'approved').reduce((sum, a) => sum + Number(a.requested_amount), 0),
+    totalRequested: allApplications.reduce((sum, a) => sum + Number(a.requestedAmount), 0),
+    totalApproved: allApplications.filter(a => a.status === 'approved').reduce((sum, a) => sum + Number(a.requestedAmount), 0),
   };
 
   return (
@@ -1482,11 +1507,11 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
             <TableBody>
               {applications.map((application) => (
                 <TableRow key={application.id}>
-                  <TableCell>{new Date(application.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell>{getUserEmail(application.user_id)}</TableCell>
-                  <TableCell className="font-medium">{application.organization_name}</TableCell>
-                  <TableCell className="capitalize">{application.grant_type.replace('-', ' ')}</TableCell>
-                  <TableCell>${application.requested_amount.toLocaleString()}</TableCell>
+                  <TableCell>{new Date(application.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell>{getUserEmail(application.userId)}</TableCell>
+                  <TableCell className="font-medium">{application.organizationName}</TableCell>
+                  <TableCell className="capitalize">{application.grantType.replace('-', ' ')}</TableCell>
+                  <TableCell>${application.requestedAmount.toLocaleString()}</TableCell>
                   <TableCell>{getStatusBadge(application.status)}</TableCell>
                   <TableCell>
                     <div className="flex items-center space-x-2">
@@ -1506,7 +1531,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
                           size="sm"
                           onClick={() => {
                             setSelectedApplication(application);
-                            setAdminNotes(application.admin_notes || "");
+                            setAdminNotes(application.adminNotes || "");
                             setIsReviewOpen(true);
                           }}
                         >
@@ -1540,7 +1565,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Applicant Email</Label>
-                  <p className="font-medium">{getUserEmail(selectedApplication.user_id)}</p>
+                  <p className="font-medium">{getUserEmail(selectedApplication.userId)}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Status</Label>
@@ -1548,51 +1573,51 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Organization Name</Label>
-                  <p className="font-medium">{selectedApplication.organization_name}</p>
+                  <p className="font-medium">{selectedApplication.organizationName}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Organization Type</Label>
-                  <p className="font-medium capitalize">{selectedApplication.organization_type || '-'}</p>
+                  <p className="font-medium capitalize">{selectedApplication.organizationType || '-'}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Grant Type</Label>
-                  <p className="font-medium capitalize">{selectedApplication.grant_type.replace('-', ' ')}</p>
+                  <p className="font-medium capitalize">{selectedApplication.grantType.replace('-', ' ')}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Requested Amount</Label>
-                  <p className="font-medium text-accent">${selectedApplication.requested_amount.toLocaleString()}</p>
+                  <p className="font-medium text-accent">${selectedApplication.requestedAmount.toLocaleString()}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Contact Name</Label>
-                  <p className="font-medium">{selectedApplication.contact_name}</p>
+                  <p className="font-medium">{selectedApplication.contactName}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Contact Email</Label>
-                  <p className="font-medium">{selectedApplication.contact_email}</p>
+                  <p className="font-medium">{selectedApplication.contactEmail}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Contact Phone</Label>
-                  <p className="font-medium">{selectedApplication.contact_phone || '-'}</p>
+                  <p className="font-medium">{selectedApplication.contactPhone || '-'}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Submitted</Label>
-                  <p className="font-medium">{new Date(selectedApplication.created_at).toLocaleString()}</p>
+                  <p className="font-medium">{new Date(selectedApplication.createdAt).toLocaleString()}</p>
                 </div>
               </div>
               <div>
                 <Label className="text-muted-foreground">Project Description</Label>
-                <p className="font-medium mt-1 p-3 bg-muted/50 rounded-lg">{selectedApplication.project_description}</p>
+                <p className="font-medium mt-1 p-3 bg-muted/50 rounded-lg">{selectedApplication.projectDescription}</p>
               </div>
-              {selectedApplication.admin_notes && (
+              {selectedApplication.adminNotes && (
                 <div>
                   <Label className="text-muted-foreground">Admin Notes</Label>
-                  <p className="font-medium mt-1 p-3 bg-muted/50 rounded-lg">{selectedApplication.admin_notes}</p>
+                  <p className="font-medium mt-1 p-3 bg-muted/50 rounded-lg">{selectedApplication.adminNotes}</p>
                 </div>
               )}
-              {selectedApplication.reviewed_at && (
+              {selectedApplication.reviewedAt && (
                 <div>
                   <Label className="text-muted-foreground">Reviewed At</Label>
-                  <p className="font-medium">{new Date(selectedApplication.reviewed_at).toLocaleString()}</p>
+                  <p className="font-medium">{new Date(selectedApplication.reviewedAt).toLocaleString()}</p>
                 </div>
               )}
             </div>
@@ -1606,7 +1631,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
           <DialogHeader>
             <DialogTitle>Review Application</DialogTitle>
             <DialogDescription>
-              Update the status of this grant application for {selectedApplication?.organization_name}.
+              Update the status of this grant application for {selectedApplication?.organizationName}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1671,20 +1696,47 @@ const ActivityLogsTab = ({ users }: { users: UserProfile[] }) => {
   const [loading, setLoading] = useState(true);
 
   const getUserEmail = (userId: string) => {
-    const user = users.find(u => u.user_id === userId);
+    const user = users.find(u => u.userId === userId);
     return user?.email || 'Unknown';
+  };
+
+  const formatDetails = (details: any) => {
+    if (!details) return '-';
+    
+    try {
+      // If it's already an object, format it nicely
+      if (typeof details === 'object') {
+        if (details.grant_type) {
+          return `Grant Type: ${details.grant_type}${details.application_id ? `, App ID: ${details.application_id.substring(0, 8)}...` : ''}`;
+        }
+        if (details.trade_id) {
+          return `Trade ID: ${details.trade_id.substring(0, 8)}...`;
+        }
+        if (details.amount) {
+          return `Amount: $${details.amount}`;
+        }
+        if (details.email) {
+          return `Email: ${details.email}`;
+        }
+        return JSON.stringify(details, null, 2);
+      }
+      
+      // If it's a string, try to parse it as JSON
+      if (typeof details === 'string') {
+        const parsed = JSON.parse(details);
+        return formatDetails(parsed);
+      }
+      
+      return String(details);
+    } catch (e) {
+      return String(details);
+    }
   };
 
   useEffect(() => {
     const fetchLogs = async () => {
       try {
-        const { data, error } = await supabase
-          .from('activity_logs')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(100);
-
-        if (error) throw error;
+        const { data } = await api.get('/admin/activity-logs');
         setLogs(data || []);
       } catch (error) {
         console.error('Error fetching logs:', error);
@@ -1720,13 +1772,13 @@ const ActivityLogsTab = ({ users }: { users: UserProfile[] }) => {
             <TableBody>
               {logs.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell>{new Date(log.created_at).toLocaleString()}</TableCell>
-                  <TableCell>{getUserEmail(log.user_id)}</TableCell>
+                  <TableCell>{new Date(log.createdAt).toLocaleString()}</TableCell>
+                  <TableCell>{getUserEmail(log.userId)}</TableCell>
                   <TableCell>{log.action}</TableCell>
-                  <TableCell className="max-w-xs truncate">
-                    {log.details ? JSON.stringify(log.details) : '-'}
+                  <TableCell className="max-w-xs">
+                    {formatDetails(log.details)}
                   </TableCell>
-                  <TableCell>{log.ip_address || '-'}</TableCell>
+                  <TableCell>{log.ipAddress || '-'}</TableCell>
                 </TableRow>
               ))}
               {logs.length === 0 && (
@@ -1752,36 +1804,37 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
   const [statusFilter, setStatusFilter] = useState("pending");
 
   const getUserEmail = (userId: string) => {
-    const user = users.find(u => u.user_id === userId);
+    const user = users.find(u => u.userId === userId);
     return user?.email || 'Unknown';
   };
 
   const fetchDeposits = async () => {
     setLoading(true);
-    let query = supabase.from('deposits').select('*').order('created_at', { ascending: false });
-    if (statusFilter !== "all") query = query.eq('status', statusFilter);
-    const { data } = await query;
-    setDeposits(data || []);
-    setLoading(false);
+    try {
+      const { data } = await api.get('/admin/deposits');
+      let filteredData = data;
+      if (statusFilter !== "all") {
+        filteredData = data.filter((d: any) => d.status === statusFilter);
+      }
+      setDeposits(filteredData || []);
+    } catch (error) {
+      console.error('Error fetching deposits:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchDeposits(); }, [statusFilter]);
 
   const updateDeposit = async (depositId: string, userId: string, amount: number, newStatus: 'approved' | 'rejected') => {
     try {
-      await supabase.from('deposits').update({ status: newStatus, reviewed_at: new Date().toISOString() }).eq('id', depositId);
-      
-      if (newStatus === 'approved') {
-        const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', userId).single();
-        const newBalance = (wallet?.balance || 0) + amount;
-        await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', userId);
-        onWalletUpdate();
-      }
+      await api.patch(`/admin/deposits/${depositId}`, { status: newStatus });
       
       toast({ title: "Success", description: `Deposit ${newStatus}` });
       fetchDeposits();
+      onWalletUpdate();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: error.response?.data?.error || error.message, variant: "destructive" });
     }
   };
 
@@ -1818,9 +1871,9 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
             <TableBody>
               {deposits.map((d) => (
                 <TableRow key={d.id}>
-                  <TableCell>{new Date(d.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell>{getUserEmail(d.user_id)}</TableCell>
-                  <TableCell className="capitalize">{d.payment_method} {d.crypto_type ? `(${d.crypto_type.toUpperCase()})` : ''}</TableCell>
+                  <TableCell>{new Date(d.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell>{getUserEmail(d.userId)}</TableCell>
+                  <TableCell className="capitalize">{d.paymentMethod} {d.cryptoType ? `(${d.cryptoType.toUpperCase()})` : ''}</TableCell>
                   <TableCell className="font-semibold">${d.amount.toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge variant={d.status === 'approved' ? 'default' : d.status === 'rejected' ? 'destructive' : 'secondary'}>
@@ -1830,10 +1883,10 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                   <TableCell>
                     {d.status === 'pending' && (
                       <div className="flex gap-2">
-                        <Button size="sm" variant="accent" onClick={() => updateDeposit(d.id, d.user_id, d.amount, 'approved')}>
+                        <Button size="sm" variant="accent" onClick={() => updateDeposit(d.id, d.userId, d.amount, 'approved')}>
                           <CheckCircle className="h-4 w-4 mr-1" />Approve
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => updateDeposit(d.id, d.user_id, d.amount, 'rejected')}>
+                        <Button size="sm" variant="outline" onClick={() => updateDeposit(d.id, d.userId, d.amount, 'rejected')}>
                           <XCircle className="h-4 w-4 mr-1" />Reject
                         </Button>
                       </div>
@@ -1860,47 +1913,37 @@ const WithdrawalsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWal
   const [statusFilter, setStatusFilter] = useState("pending");
 
   const getUserEmail = (userId: string) => {
-    const user = users.find(u => u.user_id === userId);
+    const user = users.find(u => u.userId === userId);
     return user?.email || 'Unknown';
   };
 
   const fetchWithdrawals = async () => {
     setLoading(true);
-    let query = supabase.from('withdrawals').select('*').order('created_at', { ascending: false });
-    if (statusFilter !== "all") query = query.eq('status', statusFilter);
-    const { data } = await query;
-    setWithdrawals(data || []);
-    setLoading(false);
+    try {
+      const { data } = await api.get('/admin/withdrawals');
+      let filteredData = data;
+      if (statusFilter !== "all") {
+        filteredData = data.filter((w: any) => w.status === statusFilter);
+      }
+      setWithdrawals(filteredData || []);
+    } catch (error) {
+      console.error('Error fetching withdrawals:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchWithdrawals(); }, [statusFilter]);
 
   const updateWithdrawal = async (withdrawalId: string, userId: string, amount: number, newStatus: 'approved' | 'rejected') => {
     try {
-      await supabase.from('withdrawals').update({ status: newStatus, reviewed_at: new Date().toISOString() }).eq('id', withdrawalId);
-      
-      if (newStatus === 'approved') {
-        // Deduct from wallet balance
-        const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', userId).single();
-        const newBalance = Math.max(0, (wallet?.balance || 0) - amount);
-        await supabase.from('wallets').update({ balance: newBalance }).eq('user_id', userId);
-        
-        // Log the transaction
-        await supabase.from('transactions').insert({
-          user_id: userId,
-          type: 'withdrawal',
-          amount: amount,
-          description: 'Withdrawal approved',
-          status: 'completed',
-        });
-        
-        onWalletUpdate();
-      }
+      await api.patch(`/admin/withdrawals/${withdrawalId}`, { status: newStatus });
       
       toast({ title: "Success", description: `Withdrawal ${newStatus}` });
       fetchWithdrawals();
+      onWalletUpdate();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: error.response?.data?.error || error.message, variant: "destructive" });
     }
   };
 
@@ -1938,11 +1981,11 @@ const WithdrawalsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWal
             <TableBody>
               {withdrawals.map((w) => (
                 <TableRow key={w.id}>
-                  <TableCell>{new Date(w.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell>{getUserEmail(w.user_id)}</TableCell>
-                  <TableCell className="capitalize">{w.withdrawal_method.replace('_', ' ')}</TableCell>
+                  <TableCell>{new Date(w.createdAt).toLocaleDateString()}</TableCell>
+                  <TableCell>{getUserEmail(w.userId)}</TableCell>
+                  <TableCell className="capitalize">{w.withdrawalMethod.replace('_', ' ')}</TableCell>
                   <TableCell className="max-w-xs truncate">
-                    {w.wallet_address || w.bank_details || '-'}
+                    {w.walletAddress || w.bankDetails || '-'}
                   </TableCell>
                   <TableCell className="font-semibold">${w.amount.toLocaleString()}</TableCell>
                   <TableCell>
@@ -1953,10 +1996,10 @@ const WithdrawalsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWal
                   <TableCell>
                     {w.status === 'pending' && (
                       <div className="flex gap-2">
-                        <Button size="sm" variant="accent" onClick={() => updateWithdrawal(w.id, w.user_id, w.amount, 'approved')}>
+                        <Button size="sm" variant="accent" onClick={() => updateWithdrawal(w.id, w.userId, w.amount, 'approved')}>
                           <CheckCircle className="h-4 w-4 mr-1" />Approve
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => updateWithdrawal(w.id, w.user_id, w.amount, 'rejected')}>
+                        <Button size="sm" variant="outline" onClick={() => updateWithdrawal(w.id, w.userId, w.amount, 'rejected')}>
                           <XCircle className="h-4 w-4 mr-1" />Reject
                         </Button>
                       </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import Layout from "@/components/layout/Layout";
 import { Eye, EyeOff, Lock, Mail, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 import { z } from "zod";
 import heroImage from "@/assets/hero-finance.jpg";
 
@@ -19,11 +19,20 @@ const loginSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn, isAdmin } = useAuth();
+  const { login, isAdmin, user } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  useEffect(() => {
+    if (user && !isLoading) {
+      navigate(isAdmin ? "/admin" : "/dashboard");
+    }
+  }, [user, isAdmin, isLoading, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -50,40 +59,54 @@ const Login = () => {
 
     setIsLoading(true);
 
-    const { error } = await signIn(formData.email, formData.password);
+    try {
+      const { isAdmin: adminStatus } = await login(formData.email, formData.password);
 
-    if (error) {
+      toast({
+        title: "Login Successful",
+        description: "Welcome back!",
+      });
+
+      setIsLoading(false);
+      navigate(adminStatus ? "/admin" : "/dashboard");
+    } catch (err: any) {
       setIsLoading(false);
       toast({
         title: "Login Failed",
-        description: error.message || "Invalid email or password",
+        description: err?.message || "Invalid email or password",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!forgotEmail || !/\S+@\S+\.\S+/.test(forgotEmail)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address.",
         variant: "destructive",
       });
       return;
     }
 
-    toast({
-      title: "Login Successful",
-      description: "Welcome back!",
-    });
-
-    // Allow time for admin status to be checked, then redirect
-    setTimeout(async () => {
-      setIsLoading(false);
-      // Check if user is admin by re-fetching their role
-      const { data } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', (await supabase.auth.getUser()).data.user?.id)
-        .eq('role', 'admin')
-        .maybeSingle();
-      
-      if (data) {
-        navigate("/admin");
-      } else {
-        navigate("/dashboard");
-      }
-    }, 500);
+    setForgotLoading(true);
+    try {
+      await api.post("/auth/forgot-password", { email: forgotEmail });
+      toast({
+        title: "Reset link sent",
+        description: "If the email exists, a reset link has been sent.",
+      });
+      setForgotOpen(false);
+      setForgotEmail("");
+    } catch (err: any) {
+      toast({
+        title: "Request failed",
+        description: err?.response?.data?.error || "Unable to send reset link right now.",
+        variant: "destructive",
+      });
+    } finally {
+      setForgotLoading(false);
+    }
   };
 
   return (
@@ -144,6 +167,15 @@ const Login = () => {
                   </button>
                 </div>
                 {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    className="text-sm text-accent hover:underline"
+                    onClick={() => setForgotOpen(!forgotOpen)}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
               </div>
 
               <Button type="submit" variant="accent" size="lg" className="w-full" disabled={isLoading}>
@@ -164,6 +196,36 @@ const Login = () => {
               </Link>
             </p>
           </div>
+
+          {forgotOpen && (
+            <div className="card-elevated-lg p-6 md:p-8 mt-4">
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold text-foreground">Reset your password</h3>
+                <p className="text-sm text-muted-foreground">
+                  Enter your email and we'll send you a reset link (valid for 15 minutes).
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="forgotEmail">Email Address</Label>
+                  <Input
+                    id="forgotEmail"
+                    name="forgotEmail"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button variant="accent" onClick={handleForgotPassword} disabled={forgotLoading}>
+                    {forgotLoading ? "Sending..." : "Send reset link"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setForgotOpen(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Layout>

@@ -23,7 +23,7 @@ import {
   Filter
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 
 interface Transaction {
   id: string;
@@ -32,7 +32,7 @@ interface Transaction {
   status: string;
   description: string | null;
   method?: string;
-  created_at: string;
+  createdAt: string;
 }
 
 const TransactionHistory = () => {
@@ -57,66 +57,60 @@ const TransactionHistory = () => {
     
     try {
       // Fetch deposits
-      const { data: deposits } = await supabase
-        .from('deposits')
-        .select('id, amount, status, payment_method, crypto_type, created_at')
-        .eq('user_id', user.id);
+      const depositsResponse = await api.get('/user/deposits');
+      const deposits = depositsResponse.data;
 
       // Fetch withdrawals
-      const { data: withdrawals } = await supabase
-        .from('withdrawals')
-        .select('id, amount, status, withdrawal_method, created_at')
-        .eq('user_id', user.id);
+      const withdrawalsResponse = await api.get('/user/withdrawals');
+      const withdrawals = withdrawalsResponse.data;
 
       // Fetch transactions (trades, adjustments, etc.)
-      const { data: trades } = await supabase
-        .from('transactions')
-        .select('id, amount, status, type, description, created_at')
-        .eq('user_id', user.id);
+      const transactionsResponse = await api.get('/user/transactions');
+      const trades = transactionsResponse.data;
 
       // Combine and format all transactions
       const allTransactions: Transaction[] = [];
 
-      deposits?.forEach(d => {
+      deposits?.forEach((d: any) => {
         allTransactions.push({
           id: d.id,
           type: 'deposit',
-          amount: d.amount,
+          amount: parseFloat(d.amount),
           status: d.status,
-          description: d.crypto_type 
-            ? `${d.payment_method.toUpperCase()} - ${d.crypto_type.toUpperCase()}` 
-            : d.payment_method.toUpperCase(),
-          method: d.payment_method,
-          created_at: d.created_at,
+          description: d.cryptoType 
+            ? `${d.paymentMethod.toUpperCase()} - ${d.cryptoType.toUpperCase()}` 
+            : d.paymentMethod.toUpperCase(),
+          method: d.paymentMethod,
+          createdAt: d.createdAt,
         });
       });
 
-      withdrawals?.forEach(w => {
+      withdrawals?.forEach((w: any) => {
         allTransactions.push({
           id: w.id,
           type: 'withdrawal',
-          amount: w.amount,
+          amount: parseFloat(w.amount),
           status: w.status,
-          description: w.withdrawal_method.replace('_', ' ').toUpperCase(),
-          method: w.withdrawal_method,
-          created_at: w.created_at,
+          description: w.withdrawalMethod.replace('_', ' ').toUpperCase(),
+          method: w.withdrawalMethod,
+          createdAt: w.createdAt,
         });
       });
 
-      trades?.forEach(t => {
+      trades?.forEach((t: any) => {
         allTransactions.push({
           id: t.id,
           type: 'trade',
-          amount: t.amount,
+          amount: parseFloat(t.amount),
           status: t.status || 'completed',
           description: t.description || t.type,
-          created_at: t.created_at || new Date().toISOString(),
+          createdAt: t.createdAt || new Date().toISOString(),
         });
       });
 
       // Sort by date (newest first)
       allTransactions.sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
 
       setTransactions(allTransactions);
@@ -343,7 +337,7 @@ const TransactionHistory = () => {
                         {getStatusBadge(transaction.status)}
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">
-                        {new Date(transaction.created_at).toLocaleDateString('en-US', {
+                        {new Date(transaction.createdAt).toLocaleDateString('en-US', {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',

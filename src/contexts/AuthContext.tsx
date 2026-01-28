@@ -3,10 +3,10 @@ import api from '../lib/api';
 
 // Define types based on your backend response
 interface User {
-  id: number;
+  id: string;
   email: string;
-  full_name: string;
-  role: string;
+  fullName?: string;
+  roles: string[];
 }
 
 interface AuthContextType {
@@ -14,9 +14,10 @@ interface AuthContextType {
   token: string | null;
   isAdmin: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, full_name: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ isAdmin: boolean }>;
+  register: (data: any) => Promise<void>;
   logout: () => void;
+  signOut: () => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,6 +64,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       localStorage.setItem('isAdmin', String(isAdmin));
+
+      return { isAdmin };
     } catch (error: any) {
       console.error("Login error:", error);
       let errorMessage = error.response?.data?.message || error.response?.data?.error || error.message;
@@ -74,9 +77,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const register = async (email: string, password: string, full_name: string) => {
+  const register = async (data: any) => {
     try {
-      const response = await api.post('/auth/register', { email, password, full_name });
+      let payload = data;
+      
+      // Check if data contains any File objects
+      const containsFile = Object.values(data).some(val => val instanceof File);
+      
+      if (containsFile) {
+        const formData = new FormData();
+        Object.entries(data).forEach(([key, value]) => {
+          if (value !== null && value !== undefined) {
+            if (value instanceof File) {
+              formData.append(key, value);
+            } else {
+              formData.append(key, String(value));
+            }
+          }
+        });
+        payload = formData;
+      }
+
+      const response = await api.post('/auth/register', payload, {
+        headers: containsFile ? { 'Content-Type': 'multipart/form-data' } : undefined
+      });
       
       if (!response.data) {
         throw new Error('No data received from server');
@@ -114,8 +138,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('isAdmin');
   };
 
+  // signOut kept for backwards compatibility with existing components
+  const signOut = () => logout();
+
   return (
-    <AuthContext.Provider value={{ user, token, isAdmin, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, isAdmin, isLoading, login, register, logout, signOut }}>
       {children}
     </AuthContext.Provider>
   );

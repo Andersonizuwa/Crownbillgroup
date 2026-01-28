@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "../hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { 
   User, 
   FileText, 
@@ -43,9 +42,15 @@ const steps = [
 const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signUp } = useAuth();
+  const { register, user, isAdmin } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+ 
+  useEffect(() => {
+    if (user && !isSubmitting) {
+      navigate(isAdmin ? "/admin" : "/dashboard");
+    }
+  }, [user, isAdmin, isSubmitting, navigate]);
 
   const [formData, setFormData] = useState({
     // Step 1 - Personal Info
@@ -141,6 +146,18 @@ const Register = () => {
       case 1:
         if (!formData.fullName.trim()) newErrors.fullName = "Full name is required";
         if (!formData.dateOfBirth) newErrors.dateOfBirth = "Date of birth is required";
+        // Validate date of birth is not from current year or in the future
+        if (formData.dateOfBirth) {
+          const dob = new Date(formData.dateOfBirth);
+          const today = new Date();
+          const currentYear = today.getFullYear();
+          
+          if (dob.getFullYear() > currentYear - 1) {
+            newErrors.dateOfBirth = "Date of birth cannot be from the current year or in the future";
+          } else if (dob > today) {
+            newErrors.dateOfBirth = "Date of birth cannot be in the future";
+          }
+        }
         if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
         if (!formData.email.trim()) newErrors.email = "Email is required";
         else if (!/^\S+@\S+\.\S+$/.test(formData.email)) newErrors.email = "Invalid email format";
@@ -198,39 +215,8 @@ const Register = () => {
     setIsSubmitting(true);
     
     try {
-      // Create user account
-      const { error } = await signUp(formData.email, formData.password, formData.fullName);
-      
-      if (error) {
-        toast({
-          title: "Registration Failed",
-          description: error.message || "Failed to create account",
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Update profile with additional data
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        await supabase.from('profiles').update({
-          phone: formData.phone,
-          date_of_birth: formData.dateOfBirth,
-          marital_status: formData.maritalStatus,
-          nationality: formData.nationality,
-          country_of_residence: formData.countryOfResidence,
-          tax_id: formData.taxId,
-          is_pep: formData.isPEP === 'yes',
-          pep_details: formData.pepDetails || null,
-          has_business: formData.hasBusiness,
-          business_name: formData.hasBusiness ? formData.businessName : null,
-          business_type: formData.hasBusiness ? formData.businessType : null,
-          business_industry: formData.hasBusiness ? formData.businessIndustry : null,
-          business_tax_id: formData.hasBusiness ? formData.businessTaxId : null,
-        }).eq('user_id', user.id);
-      }
+      // Create user account via backend (MySQL) with all profile details
+      await register(formData);
 
       toast({
         title: "Account Created Successfully",
@@ -240,7 +226,7 @@ const Register = () => {
     } catch (err) {
       toast({
         title: "Registration Failed",
-        description: "An error occurred. Please try again.",
+        description: err instanceof Error ? err.message : "An error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import LiveTraderInterests from "@/components/LiveTraderInterests";
+import { useToast } from "@/hooks/use-toast";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -34,11 +35,12 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 
 const Trade = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStock, setSelectedStock] = useState<typeof marketData[0] | null>(null);
   const [tradeDialogOpen, setTradeDialogOpen] = useState(false);
@@ -48,6 +50,8 @@ const Trade = () => {
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [isLoadingWallet, setIsLoadingWallet] = useState(true);
+  const [isExecutingTrade, setIsExecutingTrade] = useState(false);
+  const [livePrices, setLivePrices] = useState<Record<string, number>>({});
 
   // Fetch wallet balance
   useEffect(() => {
@@ -57,14 +61,13 @@ const Trade = () => {
         return;
       }
       
-      const { data } = await supabase
-        .from('wallets')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (data) {
-        setWalletBalance(data.balance || 0);
+      try {
+        const { data } = await api.get('/user/wallet');
+        if (data) {
+          setWalletBalance(parseFloat(data.balance) || 0);
+        }
+      } catch (error) {
+        console.error('Error fetching wallet balance:', error);
       }
       setIsLoadingWallet(false);
     };
@@ -72,7 +75,29 @@ const Trade = () => {
     fetchWallet();
   }, [user]);
 
-  // Simulate real-time updates
+  // Fetch live prices from backend
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const { data } = await api.get('/trades/prices?assetType=stock');
+        if (data) {
+          const priceMap: Record<string, number> = {};
+          data.forEach((item: any) => {
+            priceMap[item.symbol] = item.price;
+          });
+          setLivePrices(priceMap);
+        }
+      } catch (error) {
+        console.error('Error fetching live prices:', error);
+      }
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 5000); // Update every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  // Update timestamp
   useEffect(() => {
     const interval = setInterval(() => {
       setLastUpdate(new Date());
@@ -84,7 +109,7 @@ const Trade = () => {
     { 
       symbol: "AAPL", 
       name: "Apple Inc.", 
-      price: 189.45, 
+      price: livePrices['AAPL'] || 189.45, 
       change: 2.34, 
       changePercent: 1.25, 
       volume: "45.2M",
@@ -99,7 +124,7 @@ const Trade = () => {
     { 
       symbol: "GOOGL", 
       name: "Alphabet Inc.", 
-      price: 178.35, 
+      price: livePrices['GOOGL'] || 178.35, 
       change: -1.23, 
       changePercent: -0.69, 
       volume: "23.1M",
@@ -114,7 +139,7 @@ const Trade = () => {
     { 
       symbol: "MSFT", 
       name: "Microsoft Corp.", 
-      price: 423.56, 
+      price: livePrices['MSFT'] || 423.56, 
       change: 5.67, 
       changePercent: 1.36, 
       volume: "32.8M",
@@ -129,7 +154,7 @@ const Trade = () => {
     { 
       symbol: "AMZN", 
       name: "Amazon.com Inc.", 
-      price: 195.89, 
+      price: livePrices['AMZN'] || 195.89, 
       change: -2.45, 
       changePercent: -1.23, 
       volume: "28.9M",
@@ -144,7 +169,7 @@ const Trade = () => {
     { 
       symbol: "NVDA", 
       name: "NVIDIA Corp.", 
-      price: 875.42, 
+      price: livePrices['NVDA'] || 875.42, 
       change: 32.18, 
       changePercent: 3.82, 
       volume: "52.3M",
@@ -159,7 +184,7 @@ const Trade = () => {
     { 
       symbol: "META", 
       name: "Meta Platforms", 
-      price: 565.78, 
+      price: livePrices['META'] || 565.78, 
       change: 8.76, 
       changePercent: 1.57, 
       volume: "18.7M",
@@ -174,7 +199,7 @@ const Trade = () => {
     { 
       symbol: "TSLA", 
       name: "Tesla Inc.", 
-      price: 248.56, 
+      price: livePrices['TSLA'] || 248.56, 
       change: -5.32, 
       changePercent: -2.10, 
       volume: "98.5M",
@@ -189,7 +214,7 @@ const Trade = () => {
     { 
       symbol: "BRK.B", 
       name: "Berkshire Hathaway", 
-      price: 445.23, 
+      price: livePrices['BRK.B'] || 445.23, 
       change: 2.15, 
       changePercent: 0.49, 
       volume: "3.2M",
@@ -204,7 +229,7 @@ const Trade = () => {
     { 
       symbol: "JPM", 
       name: "JPMorgan Chase", 
-      price: 198.45, 
+      price: livePrices['JPM'] || 198.45, 
       change: 1.87, 
       changePercent: 0.95, 
       volume: "8.9M",
@@ -219,7 +244,7 @@ const Trade = () => {
     { 
       symbol: "V", 
       name: "Visa Inc.", 
-      price: 278.92, 
+      price: livePrices['V'] || 278.92, 
       change: 3.21, 
       changePercent: 1.16, 
       volume: "6.7M",
@@ -234,7 +259,7 @@ const Trade = () => {
     { 
       symbol: "JNJ", 
       name: "Johnson & Johnson", 
-      price: 156.78, 
+      price: livePrices['JNJ'] || 156.78, 
       change: -0.45, 
       changePercent: -0.29, 
       volume: "7.8M",
@@ -249,7 +274,7 @@ const Trade = () => {
     { 
       symbol: "WMT", 
       name: "Walmart Inc.", 
-      price: 165.34, 
+      price: livePrices['WMT'] || 165.34, 
       change: 1.23, 
       changePercent: 0.75, 
       volume: "12.4M",
@@ -263,14 +288,69 @@ const Trade = () => {
     },
   ];
 
-  const portfolioSummary = {
-    totalValue: 125432.50,
-    dayChange: 1245.32,
-    dayChangePercent: 1.00,
-    totalGain: 15234.50,
-    totalGainPercent: 13.83,
-    buyingPower: 24567.00
-  };
+  const [portfolioSummary, setPortfolioSummary] = useState({
+    totalValue: 0,
+    dayChange: 0,
+    dayChangePercent: 0,
+    totalGain: 0,
+    totalGainPercent: 0,
+    buyingPower: 0
+  });
+
+  // Fetch real portfolio summary data
+  useEffect(() => {
+    const fetchPortfolioSummary = async () => {
+      if (!user) return;
+      
+      try {
+        // Get wallet balance
+        const walletResponse = await api.get('/user/wallet');
+        const walletBalance = parseFloat(walletResponse.data.balance);
+        
+        // Get holdings with current prices
+        const holdingsResponse = await api.get('/trades/holdings/prices');
+        const holdings = holdingsResponse.data.holdings || [];
+        
+        // Calculate portfolio value
+        const holdingsValue = holdings.reduce((sum: number, h: any) => sum + parseFloat(h.currentValue), 0);
+        const totalValue = walletBalance + holdingsValue;
+        
+        // Calculate today's change (mock calculation based on previous day)
+        // In a real app, this would come from comparing with yesterday's close
+        const dayChange = holdings.reduce((sum: number, h: any) => {
+          const change = parseFloat(h.currentValue) - parseFloat(h.totalCost);
+          return sum + change;
+        }, 0);
+        
+        const dayChangePercent = totalValue > 0 ? (dayChange / totalValue) * 100 : 0;
+        
+        // Calculate total gain
+        const totalGain = holdings.reduce((sum: number, h: any) => {
+          const gain = parseFloat(h.currentValue) - parseFloat(h.totalCost);
+          return sum + gain;
+        }, 0);
+        
+        const totalGainPercent = totalValue > 0 ? (totalGain / totalValue) * 100 : 0;
+        
+        setPortfolioSummary({
+          totalValue,
+          dayChange,
+          dayChangePercent,
+          totalGain,
+          totalGainPercent,
+          buyingPower: walletBalance
+        });
+      } catch (error) {
+        console.error('Error fetching portfolio summary:', error);
+      }
+    };
+    
+    fetchPortfolioSummary();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchPortfolioSummary, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   const filteredStocks = marketData.filter(stock => 
     stock.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -297,6 +377,60 @@ const Trade = () => {
   const calculateShares = () => {
     if (!selectedStock || !tradeAmount) return "0";
     return (parseFloat(tradeAmount) / selectedStock.price).toFixed(4);
+  };
+
+  const handleExecuteTrade = async () => {
+    if (!selectedStock || !tradeAmount || !user) return;
+
+    const amount = parseFloat(tradeAmount);
+    if (amount <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Amount",
+        description: "Please enter a valid amount",
+      });
+      return;
+    }
+
+    setIsExecutingTrade(true);
+
+    try {
+      const shares = parseFloat(calculateShares());
+      const endpoint = tradeType === 'buy' ? '/trades/buy' : '/trades/sell';
+      
+      const { data } = await api.post(endpoint, {
+        assetType: 'stock',
+        symbol: selectedStock.symbol,
+        assetName: selectedStock.name,
+        quantity: shares,
+        price: selectedStock.price
+      });
+
+      toast({
+        title: "Success!",
+        description: data.message || `Trade executed successfully`,
+      });
+
+      // Refresh wallet balance
+      const walletResponse = await api.get('/user/wallet');
+      if (walletResponse.data) {
+        setWalletBalance(parseFloat(walletResponse.data.balance) || 0);
+      }
+
+      // Close dialog and reset
+      setTradeDialogOpen(false);
+      setTradeAmount("");
+      setSelectedStock(null);
+
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Trade Failed",
+        description: error.response?.data?.error || error.message || "Failed to execute trade",
+      });
+    } finally {
+      setIsExecutingTrade(false);
+    }
   };
 
   return (
@@ -376,8 +510,12 @@ const Trade = () => {
               />
             </div>
             <div className="flex gap-3">
-              <Button variant="accent" onClick={() => setSearchTerm("")}>
-                <RefreshCw className="mr-2 h-4 w-4" />
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.reload()}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
                 Refresh
               </Button>
             </div>
@@ -538,10 +676,11 @@ const Trade = () => {
               <Button 
                 variant="accent" 
                 className="w-full"
-                disabled={!tradeAmount || parseFloat(tradeAmount) <= 0}
+                disabled={!tradeAmount || parseFloat(tradeAmount) <= 0 || isExecutingTrade}
+                onClick={handleExecuteTrade}
               >
                 <TrendingUp className="mr-2 h-4 w-4" />
-                Buy {selectedStock?.symbol}
+                {isExecutingTrade ? "Processing..." : `Buy ${selectedStock?.symbol}`}
               </Button>
             </TabsContent>
             
@@ -574,10 +713,11 @@ const Trade = () => {
               <Button 
                 variant="outline" 
                 className="w-full"
-                disabled={!tradeAmount || parseFloat(tradeAmount) <= 0}
+                disabled={!tradeAmount || parseFloat(tradeAmount) <= 0 || isExecutingTrade}
+                onClick={handleExecuteTrade}
               >
                 <TrendingDown className="mr-2 h-4 w-4" />
-                Sell {selectedStock?.symbol}
+                {isExecutingTrade ? "Processing..." : `Sell ${selectedStock?.symbol}`}
               </Button>
             </TabsContent>
           </Tabs>

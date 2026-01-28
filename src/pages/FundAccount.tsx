@@ -28,22 +28,22 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 
 interface Deposit {
   id: string;
   amount: number;
-  payment_method: string;
-  crypto_type: string | null;
+  paymentMethod: string;
+  cryptoType: string | null;
   status: string;
-  created_at: string;
+  createdAt: string;
 }
 
 const FundAccount = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [fundingMethod, setFundingMethod] = useState<"crypto" | "paypal">("crypto");
+  const [fundingMethod, setFundingMethod] = useState<"crypto" | "flutterwave">("crypto");
   const [selectedCrypto, setSelectedCrypto] = useState("btc");
   const [amount, setAmount] = useState("");
   const [transactionHash, setTransactionHash] = useState("");
@@ -72,14 +72,16 @@ const FundAccount = () => {
   const fetchDeposits = async () => {
     if (!user) return;
     
-    const { data, error } = await supabase
-      .from('deposits')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (data && !error) {
-      setDeposits(data);
+    try {
+      const { data } = await api.get('/user/deposits');
+      if (data) {
+        setDeposits(data.map((d: any) => ({
+          ...d,
+          amount: parseFloat(d.amount)
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching deposits:', error);
     }
   };
 
@@ -103,23 +105,61 @@ const FundAccount = () => {
     setShowPaymentDetails(true);
   };
 
+  const initializeFlutterwavePayment = async () => {
+    if (!amount || parseFloat(amount) <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Amount",
+        description: "Please enter a valid amount to deposit",
+      });
+      return;
+    }
+    
+    try {
+      // First, create a deposit record
+      const depositResponse = await api.post('/user/deposits', {
+        amount: parseFloat(amount),
+        paymentMethod: 'flutterwave',
+        cryptoType: null,
+        transactionHash: null, // Will be updated by webhook
+        proofNotes: proofNotes || null
+      });
+      
+      // Then initialize Flutterwave payment
+      const response = await api.post('/user/flutterwave-initialize', {
+        amount: parseFloat(amount),
+        email: user?.email, // Use user's email for the transaction
+      });
+      
+      if (response.data && response.data.data.link) {
+        // Redirect to Flutterwave payment page
+        window.location.href = response.data.data.link;
+      } else {
+        throw new Error('Failed to initialize payment');
+      }
+    } catch (error: any) {
+      console.error('Error initializing Paystack payment:', error);
+      toast({
+        variant: "destructive",
+        title: "Payment Error",
+        description: error.message || "Failed to initialize Paystack payment",
+      });
+    }
+  };
+
   const handleSubmitDeposit = async () => {
     if (!user) return;
     
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase.from('deposits').insert({
-        user_id: user.id,
+      await api.post('/user/deposits', {
         amount: parseFloat(amount),
-        payment_method: fundingMethod,
-        crypto_type: fundingMethod === 'crypto' ? selectedCrypto : null,
-        transaction_hash: transactionHash || null,
-        proof_notes: proofNotes || null,
-        status: 'pending'
+        paymentMethod: fundingMethod,
+        cryptoType: fundingMethod === 'crypto' ? selectedCrypto : null,
+        transactionHash: transactionHash || null,
+        proofNotes: proofNotes || null
       });
-
-      if (error) throw error;
 
       toast({
         title: "Deposit Submitted!",
@@ -176,7 +216,7 @@ const FundAccount = () => {
         <div className="mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Fund Your Account</h1>
           <p className="text-muted-foreground mt-1">
-            Add funds to your account using cryptocurrency or PayPal
+            Add funds to your account using cryptocurrency or Paystack
           </p>
         </div>
 
@@ -201,13 +241,14 @@ const FundAccount = () => {
                         <Bitcoin className="mr-2 h-5 w-5" />
                         Crypto P2P
                       </Button>
+
                       <Button 
-                        variant={fundingMethod === "paypal" ? "accent" : "outline"} 
+                        variant={fundingMethod === "flutterwave" ? "accent" : "outline"} 
                         className="flex-1 h-auto py-4"
-                        onClick={() => setFundingMethod("paypal")}
+                        onClick={() => setFundingMethod("flutterwave")}
                       >
                         <CreditCard className="mr-2 h-5 w-5" />
-                        PayPal
+                        Pay with Card
                       </Button>
                     </div>
 
@@ -356,33 +397,26 @@ const FundAccount = () => {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      <div className="bg-[#003087] text-white rounded-lg p-6 text-center">
-                        <h3 className="text-xl font-bold mb-2">PayPal</h3>
+                      <div className="bg-purple-600 text-white rounded-lg p-6 text-center">
+                        <h3 className="text-xl font-bold mb-2">Pay with Card</h3>
                         <p className="text-sm opacity-80">Secure payment processing</p>
                       </div>
 
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>Send payment to:</Label>
+                          <Label>Amount to charge</Label>
                           <div className="flex gap-2">
                             <Input 
                               readOnly 
-                              value="ranaeputerbaugh@yahoo.com" 
+                              value={`${parseFloat(amount).toLocaleString()} USD`} 
                               className="font-mono"
                             />
-                            <Button 
-                              variant="outline" 
-                              size="icon"
-                              onClick={() => copyToClipboard("ranaeputerbaugh@yahoo.com")}
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
                           </div>
                         </div>
 
                         <div className="bg-accent/5 rounded-lg p-4">
                           <p className="text-sm text-foreground">
-                            <strong>Amount to send:</strong> ${parseFloat(amount).toLocaleString()} USD
+                            <strong>Amount to pay:</strong> ${parseFloat(amount).toLocaleString()} USD
                           </p>
                         </div>
 
@@ -392,22 +426,32 @@ const FundAccount = () => {
                             <div>
                               <h4 className="font-medium text-foreground text-sm">Instructions</h4>
                               <ul className="text-xs text-muted-foreground mt-1 space-y-1">
-                                <li>1. Log in to your PayPal account</li>
-                                <li>2. Send payment to: ranaeputerbaugh@yahoo.com</li>
-                                <li>3. Include your account email in the notes</li>
-                                <li>4. Your account will be credited once approved by admin</li>
+                                <li>1. Click the "Initialize Payment" button below</li>
+                                <li>2. Complete the payment on Flutterwave's secure page</li>
+                                <li>3. Your account will be credited once payment is confirmed</li>
                               </ul>
                             </div>
                           </div>
+                        </div>
+
+                        {/* Stripe Payment Button */}
+                        <div className="pt-4">
+                          <Button 
+                            variant="accent" 
+                            className="w-full"
+                            onClick={initializeFlutterwavePayment}
+                          >
+                            Initialize Card Payment
+                          </Button>
                         </div>
 
                         {/* Proof of payment */}
                         <div className="space-y-4 border-t border-border pt-4">
                           <h4 className="font-medium text-foreground">Payment Confirmation (Optional)</h4>
                           <div className="space-y-2">
-                            <Label>PayPal Transaction ID</Label>
+                            <Label>Reference Number</Label>
                             <Input 
-                              placeholder="Enter PayPal transaction ID"
+                              placeholder="Enter Flutterwave reference number"
                               value={transactionHash}
                               onChange={(e) => setTransactionHash(e.target.value)}
                             />
@@ -516,9 +560,9 @@ const FundAccount = () => {
                         <td className="px-6 py-4">
                           <span className="flex items-center gap-2 font-medium text-foreground">
                             <Bitcoin className="h-4 w-4 text-accent" />
-                            {deposit.payment_method === 'crypto' 
-                              ? cryptoOptions.find(c => c.value === deposit.crypto_type)?.name || 'Crypto'
-                              : 'PayPal'}
+                            {deposit.paymentMethod === 'crypto' 
+                              ? cryptoOptions.find(c => c.value === deposit.cryptoType)?.name || 'Crypto'
+                              : 'Pay with Card'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right font-medium text-foreground">
@@ -534,7 +578,7 @@ const FundAccount = () => {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-muted-foreground">
-                          {new Date(deposit.created_at).toLocaleDateString()}
+                          {new Date(deposit.createdAt).toLocaleDateString()}
                         </td>
                       </tr>
                     ))

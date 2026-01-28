@@ -20,8 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import api from "@/lib/api";
 import { toast } from "sonner";
 
 interface TraderStats {
@@ -143,13 +143,12 @@ const LiveTraderInterests = ({ type }: LiveTraderInterestsProps) => {
     // Log the attempt to database for admin notification
     if (user) {
       try {
-        await supabase.from("copy_trade_attempts").insert({
-          user_id: user.id,
-          trader_name: trader.name,
-          asset_symbol: trader.assetSymbol,
-          asset_type: type,
-          action_type: "copy_trade",
-          profit_percentage: trader.profit,
+        await api.post("/user/copy-trade-attempts", {
+          traderName: trader.name,
+          assetSymbol: trader.assetSymbol,
+          assetType: type,
+          actionType: "copy_trade",
+          profitPercentage: trader.profit,
         });
       } catch (error) {
         console.error("Failed to log copy trade attempt:", error);
@@ -373,20 +372,34 @@ const LiveTraderInterests = ({ type }: LiveTraderInterestsProps) => {
               </div>
               <h3 className="text-lg font-semibold text-foreground mb-2">All Slots Are Full</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                We've notified our team about your interest. A representative will reach out to you shortly with exclusive access opportunities.
+                The copy trading system is currently at full capacity. Our team has been notified of your interest and will reach out with exclusive access opportunities.
               </p>
               <p className="text-xs text-muted-foreground">
-                Your request has been logged and our admin team has been notified.
+                Your request has been logged and our admin team will contact you shortly.
               </p>
             </div>
           </div>
-          <Button 
-            variant="outline" 
-            className="w-full"
-            onClick={() => setSlotsFullDialogOpen(false)}
-          >
-            Got it, thanks!
-          </Button>
+          <div className="flex gap-3">
+            <Button 
+              variant="accent" 
+              className="flex-1"
+              onClick={() => {
+                setSlotsFullDialogOpen(false);
+                setSelectedTrader(selectedTrader);
+                setAnalyzeDialogOpen(true);
+              }}
+            >
+              <BarChart2 className="mr-2 h-4 w-4" />
+              View Trade Analysis
+            </Button>
+            <Button 
+              variant="outline" 
+              className="flex-1"
+              onClick={() => setSlotsFullDialogOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </>

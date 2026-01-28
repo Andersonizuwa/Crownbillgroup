@@ -3,6 +3,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -17,27 +34,179 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  Edit2
+  Edit2,
+  Loader2
 } from "lucide-react";
+import { useState, useEffect } from "react";
+import api from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const Profile = () => {
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [editingMode, setEditingMode] = useState<null | 'personal' | 'security'>(null);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showLoginHistoryModal, setShowLoginHistoryModal] = useState(false);
+  const [loginHistory, setLoginHistory] = useState<any[]>([]);
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const { data } = await api.get('/user/profile');
+      setProfile(data);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load profile information.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProfileUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target as HTMLFormElement);
+    const updatedData: any = {};
+    
+    for (const [key, value] of formData.entries()) {
+      if (value !== '') {
+        updatedData[key] = value;
+      }
+    }
+    
+    // Validate date of birth if it's being updated
+    if (updatedData.dateOfBirth) {
+      const dob = new Date(updatedData.dateOfBirth);
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      
+      if (dob.getFullYear() > currentYear - 1) {
+        toast({
+          title: "Validation Error",
+          description: "Date of birth cannot be from the current year or in the future",
+          variant: "destructive",
+        });
+        return;
+      } else if (dob > today) {
+        toast({
+          title: "Validation Error",
+          description: "Date of birth cannot be in the future",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
+    try {
+      const response = await api.patch('/user/profile', updatedData);
+      setProfile(response.data);
+      setEditingMode(null);
+      
+      toast({
+        title: "Success",
+        description: "Profile updated successfully",
+      });
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to update profile",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      await api.post('/auth/change-password', {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword
+      });
+      
+      toast({
+        title: "Success",
+        description: "Password changed successfully",
+      });
+      
+      // Reset form and close modal
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+      setShowChangePasswordModal(false);
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to change password",
+        variant: "destructive",
+      });
+    }
+  };
+
+
+
+  const handleViewLoginHistory = async () => {
+    try {
+      const response = await api.get('/auth/login-history');
+      setLoginHistory(response.data);
+      setShowLoginHistoryModal(true);
+    } catch (error: any) {
+      console.error('Error fetching login history:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to fetch login history",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+        </div>
+      </Layout>
+    );
+  }
+
   const personalInfo = {
-    fullName: "John Doe",
-    email: "john.doe@example.com",
-    phone: "+1 (555) 123-4567",
-    dateOfBirth: "January 15, 1985",
-    nationality: "United States",
-    address: "123 Main St, New York, NY 10001",
+    fullName: profile?.fullName || "Not provided",
+    email: profile?.user?.email || "Not provided",
+    phone: profile?.phone || "Not provided",
+    dateOfBirth: profile?.dateOfBirth ? new Date(profile.dateOfBirth).toLocaleDateString() : "Not provided",
+    nationality: profile?.nationality || "Not provided",
+    address: profile?.countryOfResidence || "Not provided",
   };
 
   const kycStatus = {
-    status: "verified",
-    verifiedDate: "December 20, 2025",
-    documents: [
-      { name: "Passport", status: "verified", uploadDate: "Dec 15, 2025" },
-      { name: "Proof of Address", status: "verified", uploadDate: "Dec 15, 2025" },
-      { name: "Tax ID", status: "verified", uploadDate: "Dec 15, 2025" },
-    ],
+    status: profile?.kycStatus || "pending",
+    verifiedDate: profile?.updatedAt ? new Date(profile.updatedAt).toLocaleDateString() : "N/A",
+    documents: profile?.user?.kycDocuments || [],
   };
 
   return (
@@ -76,38 +245,100 @@ const Profile = () => {
             <div className="card-elevated-lg p-6 md:p-8">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-foreground">Personal Information</h2>
-                <Button variant="outline" size="sm">
-                  <Edit2 className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
+                {editingMode !== 'personal' ? (
+                  <Button variant="outline" size="sm" onClick={() => setEditingMode('personal')}>
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                ) : null}
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Full Name</Label>
-                  <p className="font-medium text-foreground">{personalInfo.fullName}</p>
+              {editingMode === 'personal' ? (
+                <form onSubmit={handleProfileUpdate} className="space-y-6">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Full Name</Label>
+                      <Input 
+                        name="fullName"
+                        defaultValue={personalInfo.fullName !== "Not provided" ? personalInfo.fullName : ''}
+                        placeholder="Enter your full name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Email Address</Label>
+                      <Input 
+                        name="email"
+                        defaultValue={personalInfo.email !== "Not provided" ? personalInfo.email : ''}
+                        placeholder="Enter your email"
+                        readOnly
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Phone Number</Label>
+                      <Input 
+                        name="phone"
+                        defaultValue={personalInfo.phone !== "Not provided" ? personalInfo.phone : ''}
+                        placeholder="Enter your phone number"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Date of Birth</Label>
+                      <Input 
+                        name="dateOfBirth"
+                        type="date"
+                        defaultValue={profile?.dateOfBirth ? new Date(profile.dateOfBirth).toISOString().split('T')[0] : ''}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Nationality</Label>
+                      <Input 
+                        name="nationality"
+                        defaultValue={personalInfo.nationality !== "Not provided" ? personalInfo.nationality : ''}
+                        placeholder="Enter your nationality"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Country of Residence</Label>
+                      <Input 
+                        name="countryOfResidence"
+                        defaultValue={personalInfo.address !== "Not provided" ? personalInfo.address : ''}
+                        placeholder="Enter your country of residence"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <Button type="submit" variant="accent">Save Changes</Button>
+                    <Button type="button" variant="outline" onClick={() => setEditingMode(null)}>Cancel</Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Full Name</Label>
+                    <p className="font-medium text-foreground">{personalInfo.fullName}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Email Address</Label>
+                    <p className="font-medium text-foreground">{personalInfo.email}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Phone Number</Label>
+                    <p className="font-medium text-foreground">{personalInfo.phone}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Date of Birth</Label>
+                    <p className="font-medium text-foreground">{personalInfo.dateOfBirth}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Nationality</Label>
+                    <p className="font-medium text-foreground">{personalInfo.nationality}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Address</Label>
+                    <p className="font-medium text-foreground">{personalInfo.address}</p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Email Address</Label>
-                  <p className="font-medium text-foreground">{personalInfo.email}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Phone Number</Label>
-                  <p className="font-medium text-foreground">{personalInfo.phone}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Date of Birth</Label>
-                  <p className="font-medium text-foreground">{personalInfo.dateOfBirth}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Nationality</Label>
-                  <p className="font-medium text-foreground">{personalInfo.nationality}</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Address</Label>
-                  <p className="font-medium text-foreground">{personalInfo.address}</p>
-                </div>
-              </div>
+              )}
             </div>
 
             {/* KYC Status Card */}
@@ -115,23 +346,29 @@ const Profile = () => {
               <h2 className="text-xl font-semibold text-foreground mb-6">Verification Status</h2>
               
               <div className={`flex items-center gap-3 p-4 rounded-lg ${
-                kycStatus.status === 'verified' 
+                kycStatus.status === 'approved' 
                   ? 'bg-accent/10 border border-accent/20' 
-                  : 'bg-warning/10 border border-warning/20'
+                  : kycStatus.status === 'pending'
+                    ? 'bg-warning/10 border border-warning/20'
+                    : 'bg-destructive/10 border border-destructive/20'
               }`}>
-                {kycStatus.status === 'verified' ? (
+                {kycStatus.status === 'approved' ? (
                   <CheckCircle2 className="h-6 w-6 text-accent" />
-                ) : (
+                ) : kycStatus.status === 'pending' ? (
                   <Clock className="h-6 w-6 text-warning" />
+                ) : (
+                  <AlertCircle className="h-6 w-6 text-destructive" />
                 )}
                 <div>
                   <p className="font-semibold text-foreground capitalize">
-                    {kycStatus.status === 'verified' ? 'Account Verified' : 'Verification Pending'}
+                    {kycStatus.status === 'approved' ? 'Account Verified' : kycStatus.status === 'pending' ? 'Verification Pending' : 'Verification Rejected'}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {kycStatus.status === 'verified' 
+                    {kycStatus.status === 'approved' 
                       ? `Verified on ${kycStatus.verifiedDate}`
-                      : 'Your documents are being reviewed'
+                      : kycStatus.status === 'pending'
+                        ? 'Your documents are being reviewed'
+                        : 'Your verification was rejected. Please contact support.'
                     }
                   </p>
                 </div>
@@ -150,23 +387,127 @@ const Profile = () => {
                     <p className="font-medium text-foreground">Password</p>
                     <p className="text-sm text-muted-foreground">Last changed 30 days ago</p>
                   </div>
-                  <Button variant="outline">Change Password</Button>
+                  <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">Change Password</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Change Password</DialogTitle>
+                        <DialogDescription>
+                          Enter your current password and new password to update your account.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div>
+                          <Label htmlFor="current-password" className="text-right">
+                            Current Password
+                          </Label>
+                          <Input
+                            id="current-password"
+                            type="password"
+                            value={passwordData.currentPassword}
+                            onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                            className="col-span-3 mt-2"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="new-password" className="text-right">
+                            New Password
+                          </Label>
+                          <Input
+                            id="new-password"
+                            type="password"
+                            value={passwordData.newPassword}
+                            onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                            className="col-span-3 mt-2"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="confirm-password" className="text-right">
+                            Confirm New Password
+                          </Label>
+                          <Input
+                            id="confirm-password"
+                            type="password"
+                            value={passwordData.confirmPassword}
+                            onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                            className="col-span-3 mt-2"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end space-x-2">
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            setShowChangePasswordModal(false);
+                            setPasswordData({
+                              currentPassword: '',
+                              newPassword: '',
+                              confirmPassword: ''
+                            });
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button onClick={handleChangePassword}>
+                          Change Password
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
 
-                <div className="flex items-center justify-between p-4 border border-border rounded-lg">
-                  <div>
-                    <p className="font-medium text-foreground">Two-Factor Authentication</p>
-                    <p className="text-sm text-muted-foreground">Add an extra layer of security</p>
-                  </div>
-                  <Button variant="accent">Enable</Button>
-                </div>
+
 
                 <div className="flex items-center justify-between p-4 border border-border rounded-lg">
                   <div>
                     <p className="font-medium text-foreground">Login History</p>
                     <p className="text-sm text-muted-foreground">View recent account activity</p>
                   </div>
-                  <Button variant="outline">View History</Button>
+                  <Dialog open={showLoginHistoryModal} onOpenChange={setShowLoginHistoryModal}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">View History</Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl max-h-[70vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Login History</DialogTitle>
+                        <DialogDescription>
+                          Your recent account login activity.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="py-4">
+                        {loginHistory.length > 0 ? (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Date & Time</TableHead>
+                                <TableHead>IP Address</TableHead>
+                                <TableHead>User Agent</TableHead>
+                                <TableHead>Status</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {loginHistory.map((entry: any, index: number) => (
+                                <TableRow key={index}>
+                                  <TableCell>{new Date(entry.timestamp).toLocaleString()}</TableCell>
+                                  <TableCell>{entry.ip}</TableCell>
+                                  <TableCell>{entry.userAgent}</TableCell>
+                                  <TableCell>
+                                    <span className={`px-2 py-1 rounded-full text-xs ${entry.success ? 'bg-accent/10 text-accent' : 'bg-destructive/10 text-destructive'}`}>
+                                      {entry.success ? 'Success' : 'Failed'}
+                                    </span>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        ) : (
+                          <p className="text-center text-muted-foreground py-4">No login history available</p>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
             </div>
@@ -178,30 +519,38 @@ const Profile = () => {
               <h2 className="text-xl font-semibold text-foreground mb-6">Verification Documents</h2>
 
               <div className="space-y-4">
-                {kycStatus.documents.map((doc) => (
-                  <div key={doc.name} className="flex items-center justify-between p-4 border border-border rounded-lg">
+                {kycStatus.documents.map((doc: any) => (
+                  <div key={doc.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-muted-foreground" />
                       <div>
-                        <p className="font-medium text-foreground">{doc.name}</p>
-                        <p className="text-sm text-muted-foreground">Uploaded {doc.uploadDate}</p>
+                        <p className="font-medium text-foreground capitalize">{doc.documentType.replace('_', ' ')}</p>
+                        <p className="text-sm text-muted-foreground">Uploaded {new Date(doc.createdAt).toLocaleDateString()}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {doc.status === 'verified' ? (
+                      {doc.status === 'approved' ? (
                         <span className="flex items-center gap-1 text-accent text-sm">
                           <CheckCircle2 className="h-4 w-4" />
                           Verified
                         </span>
-                      ) : (
+                      ) : doc.status === 'pending' ? (
                         <span className="flex items-center gap-1 text-warning text-sm">
                           <Clock className="h-4 w-4" />
                           Pending
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 text-destructive text-sm">
+                          <AlertCircle className="h-4 w-4" />
+                          Rejected
                         </span>
                       )}
                     </div>
                   </div>
                 ))}
+                {kycStatus.documents.length === 0 && (
+                  <p className="text-center text-muted-foreground py-8">No documents uploaded yet.</p>
+                )}
               </div>
 
               <div className="mt-6 p-4 bg-muted/50 rounded-lg">

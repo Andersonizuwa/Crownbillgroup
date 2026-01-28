@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import api from "@/lib/api";
 import {
   ArrowRight,
   ArrowLeft,
@@ -36,7 +36,7 @@ const steps = [
 const GrantApplication = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signUp, user } = useAuth();
+  const { register, user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -127,9 +127,14 @@ const GrantApplication = () => {
 
       // Create account if not logged in
       if (!user) {
-        const { error: signUpError } = await signUp(formData.email, formData.password, formData.fullName);
-        
-        if (signUpError) {
+        try {
+          await register(formData);
+          // After register, useAuth updates the user state and persists token
+          // We can't immediately get the new user id from state because it's async
+          // But register already handles the login.
+          // For simplicity in this flow, let's assume we need to fetch the profile to get the ID if needed, 
+          // or just proceed if the backend handles the current logged in user.
+        } catch (signUpError: any) {
           toast({
             title: "Registration Failed",
             description: signUpError.message || "Failed to create account",
@@ -139,49 +144,23 @@ const GrantApplication = () => {
           return;
         }
 
-        // Get the new user
-        const { data: { user: newUser } } = await supabase.auth.getUser();
-        userId = newUser?.id;
-
-        if (!userId) {
-          toast({
-            title: "Error",
-            description: "Failed to create account. Please try again.",
-            variant: "destructive",
-          });
-          setIsSubmitting(false);
-          return;
-        }
-
         // Update profile with phone
-        await supabase.from('profiles').update({
+        await api.patch('/user/profile', {
           phone: formData.phone,
-        }).eq('user_id', userId);
+        });
       }
 
       // Submit grant application
-      const { error: grantError } = await supabase.from('grant_applications').insert({
-        user_id: userId,
-        grant_type: formData.grantType,
-        organization_name: formData.organizationName,
-        organization_type: formData.organizationType,
-        contact_name: formData.contactName,
-        contact_email: formData.contactEmail,
-        contact_phone: formData.contactPhone,
-        project_description: formData.projectDescription,
-        requested_amount: parseFloat(formData.requestedAmount),
-        status: 'pending',
+      await api.post('/user/grants', {
+        grantType: formData.grantType,
+        organizationName: formData.organizationName,
+        organizationType: formData.organizationType,
+        contactName: formData.contactName,
+        contactEmail: formData.contactEmail,
+        contactPhone: formData.contactPhone,
+        projectDescription: formData.projectDescription,
+        requestedAmount: parseFloat(formData.requestedAmount),
       });
-
-      if (grantError) {
-        toast({
-          title: "Application Failed",
-          description: grantError.message || "Failed to submit application",
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
 
       toast({
         title: "Application Submitted!",
