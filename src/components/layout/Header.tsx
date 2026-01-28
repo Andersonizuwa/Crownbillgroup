@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -114,7 +114,7 @@ const Header = () => {
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={signOut} className="flex items-center gap-2 cursor-pointer text-destructive">
+                  <DropdownMenuItem onClick={logout} className="flex items-center gap-2 cursor-pointer text-destructive">
                     <LogOut className="h-4 w-4" />
                     Sign Out
                   </DropdownMenuItem>
@@ -209,7 +209,7 @@ const Header = () => {
                       variant="destructive" 
                       className="w-full"
                       onClick={() => {
-                        signOut();
+                        logout();
                         setMobileMenuOpen(false);
                       }}
                     >

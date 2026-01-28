@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
+
 import {
   ArrowRight,
   ArrowLeft,
@@ -128,16 +129,29 @@ const GrantApplication = () => {
       // Create account if not logged in
       if (!user) {
         try {
-          await register(formData);
-          // After register, useAuth updates the user state and persists token
-          // We can't immediately get the new user id from state because it's async
-          // But register already handles the login.
-          // For simplicity in this flow, let's assume we need to fetch the profile to get the ID if needed, 
-          // or just proceed if the backend handles the current logged in user.
-        } catch (signUpError: any) {
+          await api.post('/auth/register', {
+            email: formData.email,
+            password: formData.password,
+            fullName: formData.fullName,
+          });
+        } catch (regError: any) {
           toast({
             title: "Registration Failed",
-            description: signUpError.message || "Failed to create account",
+            description: regError.response?.data?.error || regError.message || "Failed to create account",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Get the new user
+        const response = await api.get('/auth/user');
+        userId = response.data?.id || response.data?.user?.id;
+
+        if (!userId) {
+          toast({
+            title: "Error",
+            description: "Failed to create account. Please try again.",
             variant: "destructive",
           });
           setIsSubmitting(false);
@@ -145,21 +159,23 @@ const GrantApplication = () => {
         }
 
         // Update profile with phone
-        await api.patch('/user/profile', {
+        await api.put(`/profile/${userId}`, {
           phone: formData.phone,
         });
       }
 
       // Submit grant application
-      await api.post('/user/grants', {
-        grantType: formData.grantType,
-        organizationName: formData.organizationName,
-        organizationType: formData.organizationType,
-        contactName: formData.contactName,
-        contactEmail: formData.contactEmail,
-        contactPhone: formData.contactPhone,
-        projectDescription: formData.projectDescription,
-        requestedAmount: parseFloat(formData.requestedAmount),
+      await api.post('/grant-applications', {
+        user_id: userId,
+        grant_type: formData.grantType,
+        organization_name: formData.organizationName,
+        organization_type: formData.organizationType,
+        contact_name: formData.contactName,
+        contact_email: formData.contactEmail,
+        contact_phone: formData.contactPhone,
+        project_description: formData.projectDescription,
+        requested_amount: parseFloat(formData.requestedAmount),
+        status: 'pending',
       });
 
       toast({
@@ -168,10 +184,10 @@ const GrantApplication = () => {
       });
       
       navigate("/dashboard");
-    } catch (err) {
+    } catch (err: any) {
       toast({
         title: "Error",
-        description: "An error occurred. Please try again.",
+        description: err.message || "An error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {

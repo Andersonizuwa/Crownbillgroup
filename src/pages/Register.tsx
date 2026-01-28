@@ -14,7 +14,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../contexts/AuthContext";
 import { 
   User, 
   FileText, 
@@ -220,13 +220,13 @@ const Register = () => {
 
       toast({
         title: "Account Created Successfully",
-        description: "Welcome to CrownBillGroup! You can now log in.",
+        description: "Welcome to CrownBillGroup!",
       });
-      navigate("/login");
-    } catch (err) {
+      navigate("/dashboard");
+    } catch (err: any) {
       toast({
         title: "Registration Failed",
-        description: err instanceof Error ? err.message : "An error occurred. Please try again.",
+        description: err.message || "An error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -592,13 +592,13 @@ const Register = () => {
             <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
               <Checkbox
                 id="hasBusiness"
-                checked={!formData.hasBusiness}
+                checked={formData.hasBusiness}
                 onCheckedChange={(checked) => {
-                  setFormData(prev => ({ ...prev, hasBusiness: !checked }));
+                  setFormData(prev => ({ ...prev, hasBusiness: Boolean(checked) }));
                 }}
               />
               <Label htmlFor="hasBusiness" className="cursor-pointer font-medium">
-                I don't have a business
+                I have a business
               </Label>
             </div>
 

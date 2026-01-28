@@ -881,7 +881,7 @@ Fidelity Team`);
   );
 };
 
-// Wallets Tab Component
+// Helper Components
 const WalletsTab = ({ 
   wallets, 
   users, 
