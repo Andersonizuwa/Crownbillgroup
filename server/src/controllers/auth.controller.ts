@@ -124,7 +124,7 @@ export const register = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { userId: user.id, roles: user.userrole.map(r => r.role) },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '30m' } // Reduced from 24h to 30 minutes for better security
     );
 
     res.cookie('token', token, {
@@ -168,15 +168,20 @@ export const login = async (req: Request, res: Response) => {
     if (!user || !user.passwordHash) {
       console.warn(`Failed login attempt for email: ${email} - User not found`);
       // Log failed login attempt
-      /*await prisma.loginhistory.create({
-        data: {
-          userId: user?.id || 'unknown',
-          ipAddress,
-          userAgent,
-          success: false,
-          failureReason: 'User not found'
-        }
-      });*/
+      try {
+        await prisma.loginhistory.create({
+          data: {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            userId: user?.id || 'unknown',
+            ipAddress,
+            userAgent,
+            success: false,
+            failureReason: 'User not found'
+          }
+        });
+      } catch (error) {
+        console.error('Error logging failed login attempt:', error);
+      }
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -184,32 +189,42 @@ export const login = async (req: Request, res: Response) => {
     if (!isPasswordValid) {
       console.warn(`Failed login attempt for email: ${email} - Incorrect password`);
       // Log failed login attempt
-      /*await prisma.loginhistory.create({
-        data: {
-          userId: user.id,
-          ipAddress,
-          userAgent,
-          success: false,
-          failureReason: 'Incorrect password'
-        }
-      });*/
+      try {
+        await prisma.loginhistory.create({
+          data: {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            userId: user.id,
+            ipAddress,
+            userAgent,
+            success: false,
+            failureReason: 'Incorrect password'
+          }
+        });
+      } catch (error) {
+        console.error('Error logging failed login attempt:', error);
+      }
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Log successful login
-    /*await prisma.loginhistory.create({
-      data: {
-        userId: user.id,
-        ipAddress,
-        userAgent,
-        success: true
-      }
-    });*/
+    try {
+      await prisma.loginhistory.create({
+        data: {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          userId: user.id,
+          ipAddress,
+          userAgent,
+          success: true
+        }
+      });
+    } catch (error) {
+      console.error('Error logging successful login:', error);
+    }
 
     const token = jwt.sign(
   { userId: user.id, roles: user.userrole.map((r: any) => r.role) },
   JWT_SECRET,
-  { expiresIn: '24h' }
+  { expiresIn: '30m' } // Reduced from 24h to 30 minutes for better security
 );
 
     const isAdmin = user.userrole.some((r: any) => r.role === 'admin');
@@ -473,5 +488,52 @@ export const getLoginHistory = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('Get login history error:', error);
     res.status(500).json({ error: 'Error fetching login history' });
+  }
+};
+
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+
+    if (!token) return res.status(401).json({ error: 'Token missing' });
+
+    // Verify the current token
+    const payload = jwt.verify(token, JWT_SECRET) as any;
+    
+    // Create a new token with extended expiration
+    const newToken = jwt.sign(
+      { userId: payload.userId, roles: payload.roles },
+      JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+
+    res.json({ 
+      message: 'Token refreshed successfully', 
+      token: newToken 
+    });
+  } catch (error: any) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+export const logout = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Clear the token cookie
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
+    
+    // Optionally log the logout event
+    console.log(`User ${userId} logged out successfully`);
+    
+    res.json({ message: 'Logged out successfully' });
+  } catch (error: any) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Error during logout' });
   }
 };

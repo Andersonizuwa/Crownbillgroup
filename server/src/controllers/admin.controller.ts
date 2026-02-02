@@ -99,6 +99,28 @@ export const updateUserRole = async (req: Request, res: Response) => {
 };
 
 // 4.3 Admin Financial Management
+export const getDeposits = async (req: Request, res: Response) => {
+  try {
+    // Check for status filter in query params
+    const statusFilter = req.query.status as string;
+    
+    const whereClause: any = {};
+    if (statusFilter && statusFilter !== 'all') {
+      whereClause.status = statusFilter;
+    }
+    
+    const deposits = await prisma.deposit.findMany({
+      where: whereClause,
+      include: { user: { include: { profile: true } } },
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    res.json(deposits);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const getPendingDeposits = async (req: Request, res: Response) => {
   try {
     const deposits = await prisma.deposit.findMany({
@@ -115,9 +137,11 @@ export const getPendingDeposits = async (req: Request, res: Response) => {
 export const reviewDeposit = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { status, adminNotes } = req.body; // status: 'approved' or 'rejected'
+    const { status, adminNotes, settlementDetails, amount } = req.body;
 
-    if (!['approved', 'rejected'].includes(status)) {
+    // Validate status
+    const validStatuses = ['approved', 'rejected', 'awaiting_payment', 'pending_matching', 'awaiting_confirmation'];
+    if (!validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
@@ -130,26 +154,60 @@ export const reviewDeposit = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Deposit not found' });
     }
 
-    if (deposit.status !== 'pending') {
-      return res.status(400).json({ error: 'Deposit already reviewed' });
+    // Additional validation: can only approve deposits that are awaiting_confirmation
+    if (status === 'approved' && deposit.status !== 'awaiting_confirmation') {
+      return res.status(400).json({ 
+        error: 'Can only approve deposits that have been submitted with proof of payment and are awaiting confirmation' 
+      });
+    }
+
+    // Additional validation: for crypto deposits, transaction hash is required
+    if (status === 'approved' && deposit.paymentMethod === 'crypto' && !deposit.transactionHash) {
+      return res.status(400).json({ 
+        error: 'Transaction hash is required for crypto deposit approval' 
+      });
+    }
+
+    // Additional validation: can only reject deposits that are not already approved
+    if (status === 'rejected' && deposit.status === 'approved') {
+      return res.status(400).json({ 
+        error: 'Cannot reject an already approved deposit' 
+      });
     }
 
     const updatedDeposit = await prisma.$transaction(async (tx: any) => {
+      const updateData: any = {
+        status,
+        updatedAt: new Date()
+      };
+
+      if (adminNotes) updateData.adminNotes = adminNotes;
+      
+      // Allow admin to update settlement details when moving to awaiting_payment status
+      if (settlementDetails && (status === 'awaiting_payment' || status === 'pending_matching')) {
+        updateData.settlementDetails = settlementDetails;
+      }
+
+      // Allow admin to correct the amount if proof shows a different value
+      if (amount !== undefined && amount !== null) {
+        updateData.amount = Number(amount);
+      }
+      
+      if (status !== 'pending_matching' && status !== 'awaiting_payment') {
+        updateData.reviewedAt = new Date();
+      }
+
       const updated = await tx.deposit.update({
         where: { id },
-        data: {
-          status,
-          adminNotes,
-          reviewedAt: new Date(),
-          // reviewedBy: req.user?.userId // If we want to track who reviewed it
-        }
+        data: updateData
       });
 
+      // Add funds for all approved deposits
       if (status === 'approved') {
         // Update user wallet
         await tx.wallet.update({
           where: { userId: deposit.userId },
-          data: { balance: { increment: deposit.amount } }
+          data: { balance: { increment: updated.amount } }
         });
 
         // Create a transaction record
@@ -158,7 +216,7 @@ export const reviewDeposit = async (req: Request, res: Response) => {
             id: uuidv4(),
             userId: deposit.userId,
             type: 'deposit',
-            amount: deposit.amount,
+            amount: updated.amount,
             description: `Deposit approved: ${deposit.paymentMethod}`,
             status: 'completed',
             referenceId: deposit.id

@@ -348,6 +348,199 @@ export const getTradeHistory = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Get recent trades from all users
+export const getRecentTrades = async (req: Request, res: Response) => {
+  try {
+    const { limit = 10 } = req.query;
+    
+    // Get recent trades from all users
+    const trades = await prisma.trade.findMany({
+      include: {
+        user: {
+          include: {
+            profile: true
+          }
+        }
+      },
+      orderBy: { executedAt: 'desc' },
+      take: parseInt(limit as string)
+    });
+
+    // Transform trades to trader activity format
+    const traderActivities = await Promise.all(trades.map(async (trade) => {
+      // Calculate profit based on holding data if available
+      let profit = 0;
+      
+      // Calculate profit based on current market prices
+      const currentPrice = priceSimulator.getPrice(
+        trade.assetType as 'stock' | 'crypto',
+        trade.symbol
+      );
+      
+      if (currentPrice > 0) {
+        const currentValue = parseFloat(trade.quantity.toString()) * currentPrice;
+        const totalCost = parseFloat(trade.totalAmount.toString());
+        profit = ((currentValue - totalCost) / totalCost) * 100; // percentage
+      }
+      
+      // Get user's name from profile or create a default one
+      let traderName = "Anonymous Trader";
+      let avatarInitials = "AT";
+      
+      if (trade.user.profile && trade.user.profile.fullName) {
+        const nameParts = trade.user.profile.fullName.trim().split(' ');
+        if (nameParts.length >= 2) {
+          // Format as "FirstName L." (first name and last initial)
+          traderName = `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}.`;
+          avatarInitials = (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+        } else if (nameParts.length === 1) {
+          // If only one name part, use first letter and a default
+          traderName = nameParts[0];
+          avatarInitials = nameParts[0][0].toUpperCase() + "T";
+        }
+      } else {
+        // Generate a default name based on user ID
+        const userIdSuffix = trade.userId.substring(trade.userId.length - 4);
+        traderName = `User${userIdSuffix}`;
+        avatarInitials = `U${userIdSuffix.substring(0, 1)}`;
+      }
+      
+      // Calculate trader statistics
+      const traderStats = await calculateTraderStats(trade.userId);
+      
+      return {
+        id: trade.id,
+        traderName,
+        avatar: avatarInitials,
+        asset: trade.assetName,
+        assetSymbol: trade.symbol,
+        action: trade.tradeType as "buy" | "sell",
+        profit: parseFloat(profit.toFixed(2)),
+        timeAgo: getTimeAgo(trade.executedAt),
+        stats: traderStats
+      };
+    }));
+
+    res.json(traderActivities);
+  } catch (error: any) {
+    console.error('Error fetching recent trades:', error);
+    res.status(500).json({ error: 'Error fetching recent trades' });
+  }
+};
+
+// Helper function to calculate trader statistics
+const calculateTraderStats = async (userId: string) => {
+  // Get all trades for this user
+  const userTrades = await prisma.trade.findMany({
+    where: { userId },
+    orderBy: { executedAt: 'desc' }
+  });
+  
+  // Calculate basic stats
+  const totalTrades = userTrades.length;
+  
+  if (totalTrades === 0) {
+    return {
+      totalTrades: 0,
+      winRate: 0,
+      avgProfit: 0,
+      monthlyReturn: 0,
+      weeklyTrades: [],
+      recentTrades: []
+    };
+  }
+  
+  // Calculate win rate (positive profit trades)
+  let winCount = 0;
+  let totalProfit = 0;
+  
+  // For recent trades, we'll use the latest trades
+  const recentTrades = [];
+  
+  for (let i = 0; i < userTrades.length && i < 3; i++) {
+    const trade = userTrades[i]; // Latest trades first
+    
+    // Calculate profit for this trade
+    const currentPrice = priceSimulator.getPrice(
+      trade.assetType as 'stock' | 'crypto',
+      trade.symbol
+    );
+    
+    let tradeProfit = 0;
+    if (currentPrice > 0) {
+      const currentValue = parseFloat(trade.quantity.toString()) * currentPrice;
+      const totalCost = parseFloat(trade.totalAmount.toString());
+      tradeProfit = ((currentValue - totalCost) / totalCost) * 100; // percentage
+      
+      if (tradeProfit > 0) {
+        winCount++;
+      }
+    }
+    
+    recentTrades.push({
+      asset: trade.assetName,
+      profit: parseFloat(tradeProfit.toFixed(2)),
+      date: 'Today' // Could be based on actual trade date in production
+    });
+  }
+  
+  // Calculate overall stats from all trades
+  for (const trade of userTrades) {
+    const currentPrice = priceSimulator.getPrice(
+      trade.assetType as 'stock' | 'crypto',
+      trade.symbol
+    );
+    
+    if (currentPrice > 0) {
+      const currentValue = parseFloat(trade.quantity.toString()) * currentPrice;
+      const totalCost = parseFloat(trade.totalAmount.toString());
+      const tradeProfit = ((currentValue - totalCost) / totalCost) * 100; // percentage
+      
+      totalProfit += tradeProfit;
+    }
+  }
+  
+  const winRate = totalTrades > 0 ? Math.round((winCount / totalTrades) * 100) : 0;
+  const avgProfit = totalTrades > 0 ? parseFloat((totalProfit / totalTrades).toFixed(2)) : 0;
+  
+  // Calculate weekly trades (mock data for demonstration)
+  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  const weeklyTrades = daysOfWeek.map(day => {
+    return {
+      day,
+      profit: parseFloat((Math.random() * 10 - 2).toFixed(2)) // Random profit between -2% and 8%
+    };
+  });
+  
+  // Calculate monthly return (mock data)
+  const monthlyReturn = parseFloat((avgProfit * 3).toFixed(2)); // Just a mock calculation
+  
+  return {
+    totalTrades,
+    winRate,
+    avgProfit,
+    monthlyReturn,
+    weeklyTrades,
+    recentTrades
+  };
+};
+
+// Helper function to calculate time ago
+const getTimeAgo = (date: Date): string => {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 2592000) { // Less than 30 days
+    const days = Math.floor(seconds / 86400);
+    return `${days}d ago`;
+  }
+  
+  const days = Math.floor(seconds / 86400);
+  return `${days}d ago`;
+};
+
 // Get current market prices
 export const getCurrentPrices = async (req: Request, res: Response) => {
   try {

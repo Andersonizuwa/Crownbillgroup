@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   TrendingUp, 
@@ -54,83 +54,184 @@ const LiveTraderInterests = ({ type }: LiveTraderInterestsProps) => {
   const [slotsFullDialogOpen, setSlotsFullDialogOpen] = useState(false);
   const [analyzeDialogOpen, setAnalyzeDialogOpen] = useState(false);
   const [selectedTrader, setSelectedTrader] = useState<Trader | null>(null);
+  const [traders, setTraders] = useState<Trader[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock trader data with detailed stats
-  const traders: Trader[] = type === "stock" 
-    ? [
-        { 
-          id: "1", name: "Marcus W.", avatar: "MW", asset: "NVDA", assetSymbol: "NVDA", action: "buy", profit: 18.5, timeAgo: "2m ago",
-          stats: { totalTrades: 245, winRate: 78, avgProfit: 12.4, monthlyReturn: 34.2, 
-            weeklyTrades: [{ day: "Mon", profit: 5.2 }, { day: "Tue", profit: -2.1 }, { day: "Wed", profit: 8.3 }, { day: "Thu", profit: 3.7 }, { day: "Fri", profit: 6.1 }],
-            recentTrades: [{ asset: "NVDA", profit: 18.5, date: "Today" }, { asset: "AMD", profit: 12.3, date: "Yesterday" }, { asset: "INTC", profit: -4.2, date: "2 days ago" }]
+  // Fetch real trader data
+  useEffect(() => {
+    const fetchTraders = async () => {
+      try {
+        const response = await api.get('/trades/recent?limit=10');
+        const data = response.data;
+
+        // Filter by type if needed (though the API could handle this)
+        const filteredData = data.filter((trade: any) => {
+          if (type === "stock") {
+            return trade.assetSymbol.match(/^[A-Z]{3,4}$/); // Stock symbols are typically 3-4 letters
+          } else {
+            // For crypto, we could filter differently if needed
+            return true;
           }
-        },
-        { 
-          id: "2", name: "Sarah K.", avatar: "SK", asset: "AAPL", assetSymbol: "AAPL", action: "buy", profit: 12.3, timeAgo: "5m ago",
-          stats: { totalTrades: 189, winRate: 72, avgProfit: 9.8, monthlyReturn: 28.5,
-            weeklyTrades: [{ day: "Mon", profit: 3.4 }, { day: "Tue", profit: 4.2 }, { day: "Wed", profit: -1.5 }, { day: "Thu", profit: 7.8 }, { day: "Fri", profit: 2.9 }],
-            recentTrades: [{ asset: "AAPL", profit: 12.3, date: "Today" }, { asset: "MSFT", profit: 8.1, date: "Yesterday" }, { asset: "GOOGL", profit: 5.4, date: "2 days ago" }]
+        });
+
+        // Map to Trader interface format
+        const mappedTraders: Trader[] = filteredData.map((trade: any) => ({
+          id: trade.id,
+          name: trade.traderName,
+          avatar: trade.avatar,
+          asset: trade.asset,
+          assetSymbol: trade.assetSymbol,
+          action: trade.action === "buy" || trade.action === "sell" ? trade.action : "buy",
+          profit: trade.profit,
+          timeAgo: trade.timeAgo,
+          stats: {
+            totalTrades: trade.stats.totalTrades,
+            winRate: trade.stats.winRate,
+            avgProfit: trade.stats.avgProfit,
+            monthlyReturn: trade.stats.monthlyReturn,
+            weeklyTrades: trade.stats.weeklyTrades,
+            recentTrades: trade.stats.recentTrades
           }
-        },
-        { 
-          id: "3", name: "James T.", avatar: "JT", asset: "TSLA", assetSymbol: "TSLA", action: "sell", profit: -4.2, timeAgo: "8m ago",
-          stats: { totalTrades: 312, winRate: 65, avgProfit: 7.2, monthlyReturn: 19.8,
-            weeklyTrades: [{ day: "Mon", profit: -3.2 }, { day: "Tue", profit: 6.1 }, { day: "Wed", profit: 4.3 }, { day: "Thu", profit: -1.8 }, { day: "Fri", profit: 5.5 }],
-            recentTrades: [{ asset: "TSLA", profit: -4.2, date: "Today" }, { asset: "RIVN", profit: 6.7, date: "Yesterday" }, { asset: "F", profit: 3.2, date: "2 days ago" }]
-          }
-        },
-        { 
-          id: "4", name: "Elena R.", avatar: "ER", asset: "MSFT", assetSymbol: "MSFT", action: "buy", profit: 8.7, timeAgo: "12m ago",
-          stats: { totalTrades: 156, winRate: 81, avgProfit: 11.3, monthlyReturn: 31.4,
-            weeklyTrades: [{ day: "Mon", profit: 4.8 }, { day: "Tue", profit: 3.2 }, { day: "Wed", profit: 5.6 }, { day: "Thu", profit: -0.8 }, { day: "Fri", profit: 7.2 }],
-            recentTrades: [{ asset: "MSFT", profit: 8.7, date: "Today" }, { asset: "ORCL", profit: 5.4, date: "Yesterday" }, { asset: "CRM", profit: 9.1, date: "2 days ago" }]
-          }
-        },
-        { 
-          id: "5", name: "David L.", avatar: "DL", asset: "GOOGL", assetSymbol: "GOOGL", action: "buy", profit: 22.1, timeAgo: "15m ago",
-          stats: { totalTrades: 278, winRate: 85, avgProfit: 14.7, monthlyReturn: 42.3,
-            weeklyTrades: [{ day: "Mon", profit: 8.4 }, { day: "Tue", profit: 5.6 }, { day: "Wed", profit: 9.2 }, { day: "Thu", profit: 3.1 }, { day: "Fri", profit: 11.3 }],
-            recentTrades: [{ asset: "GOOGL", profit: 22.1, date: "Today" }, { asset: "META", profit: 15.8, date: "Yesterday" }, { asset: "AMZN", profit: 11.2, date: "2 days ago" }]
-          }
-        },
-      ]
-    : [
-        { 
-          id: "1", name: "Alex M.", avatar: "AM", asset: "Bitcoin", assetSymbol: "BTC", action: "buy", profit: 25.8, timeAgo: "1m ago",
-          stats: { totalTrades: 423, winRate: 76, avgProfit: 18.2, monthlyReturn: 52.4,
-            weeklyTrades: [{ day: "Mon", profit: 12.3 }, { day: "Tue", profit: -4.5 }, { day: "Wed", profit: 15.8 }, { day: "Thu", profit: 8.2 }, { day: "Fri", profit: 19.1 }],
-            recentTrades: [{ asset: "BTC", profit: 25.8, date: "Today" }, { asset: "ETH", profit: 18.4, date: "Yesterday" }, { asset: "BNB", profit: 9.7, date: "2 days ago" }]
-          }
-        },
-        { 
-          id: "2", name: "Lisa P.", avatar: "LP", asset: "Ethereum", assetSymbol: "ETH", action: "buy", profit: 15.2, timeAgo: "3m ago",
-          stats: { totalTrades: 356, winRate: 71, avgProfit: 13.5, monthlyReturn: 38.7,
-            weeklyTrades: [{ day: "Mon", profit: 7.8 }, { day: "Tue", profit: 5.2 }, { day: "Wed", profit: -2.3 }, { day: "Thu", profit: 11.4 }, { day: "Fri", profit: 8.9 }],
-            recentTrades: [{ asset: "ETH", profit: 15.2, date: "Today" }, { asset: "MATIC", profit: 11.3, date: "Yesterday" }, { asset: "LINK", profit: 7.8, date: "2 days ago" }]
-          }
-        },
-        { 
-          id: "3", name: "Chris B.", avatar: "CB", asset: "Solana", assetSymbol: "SOL", action: "buy", profit: 32.4, timeAgo: "6m ago",
-          stats: { totalTrades: 512, winRate: 82, avgProfit: 21.3, monthlyReturn: 68.5,
-            weeklyTrades: [{ day: "Mon", profit: 18.4 }, { day: "Tue", profit: 12.1 }, { day: "Wed", profit: -5.2 }, { day: "Thu", profit: 22.8 }, { day: "Fri", profit: 15.6 }],
-            recentTrades: [{ asset: "SOL", profit: 32.4, date: "Today" }, { asset: "AVAX", profit: 24.1, date: "Yesterday" }, { asset: "DOT", profit: 14.5, date: "2 days ago" }]
-          }
-        },
-        { 
-          id: "4", name: "Nina V.", avatar: "NV", asset: "XRP", assetSymbol: "XRP", action: "sell", profit: -8.1, timeAgo: "10m ago",
-          stats: { totalTrades: 289, winRate: 68, avgProfit: 10.8, monthlyReturn: 24.3,
-            weeklyTrades: [{ day: "Mon", profit: -3.2 }, { day: "Tue", profit: 8.5 }, { day: "Wed", profit: 5.1 }, { day: "Thu", profit: -2.4 }, { day: "Fri", profit: 9.3 }],
-            recentTrades: [{ asset: "XRP", profit: -8.1, date: "Today" }, { asset: "ADA", profit: 6.4, date: "Yesterday" }, { asset: "DOGE", profit: 12.8, date: "2 days ago" }]
-          }
-        },
-        { 
-          id: "5", name: "Tom H.", avatar: "TH", asset: "Dogecoin", assetSymbol: "DOGE", action: "buy", profit: 45.6, timeAgo: "14m ago",
-          stats: { totalTrades: 634, winRate: 79, avgProfit: 25.4, monthlyReturn: 78.2,
-            weeklyTrades: [{ day: "Mon", profit: 22.1 }, { day: "Tue", profit: 15.8 }, { day: "Wed", profit: 31.2 }, { day: "Thu", profit: -8.4 }, { day: "Fri", profit: 28.6 }],
-            recentTrades: [{ asset: "DOGE", profit: 45.6, date: "Today" }, { asset: "SHIB", profit: 38.2, date: "Yesterday" }, { asset: "PEPE", profit: 52.1, date: "2 days ago" }]
-          }
-        },
-      ];
+        }));
+
+        setTraders(mappedTraders);
+      } catch (error) {
+        console.error('Error fetching trader activity:', error);
+        // Fallback to mock data if API fails
+        const mockTraders: Trader[] = type === "stock" 
+          ? [
+              { 
+                id: "1", name: "Marcus W.", avatar: "MW", asset: "NVDA", assetSymbol: "NVDA", action: "buy", profit: 18.5, timeAgo: "2m ago",
+                stats: { totalTrades: 245, winRate: 78, avgProfit: 12.4, monthlyReturn: 34.2, 
+                  weeklyTrades: [{ day: "Mon", profit: 5.2 }, { day: "Tue", profit: -2.1 }, { day: "Wed", profit: 8.3 }, { day: "Thu", profit: 3.7 }, { day: "Fri", profit: 6.1 }],
+                  recentTrades: [{ asset: "NVDA", profit: 18.5, date: "Today" }, { asset: "AMD", profit: 12.3, date: "Yesterday" }, { asset: "INTC", profit: -4.2, date: "2 days ago" }]
+                }
+              },
+              { 
+                id: "2", name: "Sarah K.", avatar: "SK", asset: "AAPL", assetSymbol: "AAPL", action: "buy", profit: 12.3, timeAgo: "5m ago",
+                stats: { totalTrades: 189, winRate: 72, avgProfit: 9.8, monthlyReturn: 28.5,
+                  weeklyTrades: [{ day: "Mon", profit: 3.4 }, { day: "Tue", profit: 4.2 }, { day: "Wed", profit: -1.5 }, { day: "Thu", profit: 7.8 }, { day: "Fri", profit: 2.9 }],
+                  recentTrades: [{ asset: "AAPL", profit: 12.3, date: "Today" }, { asset: "MSFT", profit: 8.1, date: "Yesterday" }, { asset: "GOOGL", profit: 5.4, date: "2 days ago" }]
+                }
+              },
+              { 
+                id: "3", name: "James T.", avatar: "JT", asset: "TSLA", assetSymbol: "TSLA", action: "sell", profit: -4.2, timeAgo: "8m ago",
+                stats: { totalTrades: 312, winRate: 65, avgProfit: 7.2, monthlyReturn: 19.8,
+                  weeklyTrades: [{ day: "Mon", profit: -3.2 }, { day: "Tue", profit: 6.1 }, { day: "Wed", profit: 4.3 }, { day: "Thu", profit: -1.8 }, { day: "Fri", profit: 5.5 }],
+                  recentTrades: [{ asset: "TSLA", profit: -4.2, date: "Today" }, { asset: "RIVN", profit: 6.7, date: "Yesterday" }, { asset: "F", profit: 3.2, date: "2 days ago" }]
+                }
+              },
+              { 
+                id: "4", name: "Elena R.", avatar: "ER", asset: "MSFT", assetSymbol: "MSFT", action: "buy", profit: 8.7, timeAgo: "12m ago",
+                stats: { totalTrades: 156, winRate: 81, avgProfit: 11.3, monthlyReturn: 31.4,
+                  weeklyTrades: [{ day: "Mon", profit: 4.8 }, { day: "Tue", profit: 3.2 }, { day: "Wed", profit: 5.6 }, { day: "Thu", profit: -0.8 }, { day: "Fri", profit: 7.2 }],
+                  recentTrades: [{ asset: "MSFT", profit: 8.7, date: "Today" }, { asset: "ORCL", profit: 5.4, date: "Yesterday" }, { asset: "CRM", profit: 9.1, date: "2 days ago" }]
+                }
+              },
+              { 
+                id: "5", name: "David L.", avatar: "DL", asset: "GOOGL", assetSymbol: "GOOGL", action: "buy", profit: 22.1, timeAgo: "15m ago",
+                stats: { totalTrades: 278, winRate: 85, avgProfit: 14.7, monthlyReturn: 42.3,
+                  weeklyTrades: [{ day: "Mon", profit: 8.4 }, { day: "Tue", profit: 5.6 }, { day: "Wed", profit: 9.2 }, { day: "Thu", profit: 3.1 }, { day: "Fri", profit: 11.3 }],
+                  recentTrades: [{ asset: "GOOGL", profit: 22.1, date: "Today" }, { asset: "META", profit: 15.8, date: "Yesterday" }, { asset: "AMZN", profit: 11.2, date: "2 days ago" }]
+                }
+              },
+            ]
+          : [
+              { 
+                id: "1", name: "Alex M.", avatar: "AM", asset: "Bitcoin", assetSymbol: "BTC", action: "buy", profit: 25.8, timeAgo: "1m ago",
+                stats: { totalTrades: 423, winRate: 76, avgProfit: 18.2, monthlyReturn: 52.4,
+                  weeklyTrades: [{ day: "Mon", profit: 12.3 }, { day: "Tue", profit: -4.5 }, { day: "Wed", profit: 15.8 }, { day: "Thu", profit: 8.2 }, { day: "Fri", profit: 19.1 }],
+                  recentTrades: [{ asset: "BTC", profit: 25.8, date: "Today" }, { asset: "ETH", profit: 18.4, date: "Yesterday" }, { asset: "BNB", profit: 9.7, date: "2 days ago" }]
+                }
+              },
+              { 
+                id: "2", name: "Lisa P.", avatar: "LP", asset: "Ethereum", assetSymbol: "ETH", action: "buy", profit: 15.2, timeAgo: "3m ago",
+                stats: { totalTrades: 356, winRate: 71, avgProfit: 13.5, monthlyReturn: 38.7,
+                  weeklyTrades: [{ day: "Mon", profit: 7.8 }, { day: "Tue", profit: 5.2 }, { day: "Wed", profit: -2.3 }, { day: "Thu", profit: 11.4 }, { day: "Fri", profit: 8.9 }],
+                  recentTrades: [{ asset: "ETH", profit: 15.2, date: "Today" }, { asset: "MATIC", profit: 11.3, date: "Yesterday" }, { asset: "LINK", profit: 7.8, date: "2 days ago" }]
+                }
+              },
+              { 
+                id: "3", name: "Chris B.", avatar: "CB", asset: "Solana", assetSymbol: "SOL", action: "buy", profit: 32.4, timeAgo: "6m ago",
+                stats: { totalTrades: 512, winRate: 82, avgProfit: 21.3, monthlyReturn: 68.5,
+                  weeklyTrades: [{ day: "Mon", profit: 18.4 }, { day: "Tue", profit: 12.1 }, { day: "Wed", profit: -5.2 }, { day: "Thu", profit: 22.8 }, { day: "Fri", profit: 15.6 }],
+                  recentTrades: [{ asset: "SOL", profit: 32.4, date: "Today" }, { asset: "AVAX", profit: 24.1, date: "Yesterday" }, { asset: "DOT", profit: 14.5, date: "2 days ago" }]
+                }
+              },
+              { 
+                id: "4", name: "Nina V.", avatar: "NV", asset: "XRP", assetSymbol: "XRP", action: "sell", profit: -8.1, timeAgo: "10m ago",
+                stats: { totalTrades: 289, winRate: 68, avgProfit: 10.8, monthlyReturn: 24.3,
+                  weeklyTrades: [{ day: "Mon", profit: -3.2 }, { day: "Tue", profit: 8.5 }, { day: "Wed", profit: 5.1 }, { day: "Thu", profit: -2.4 }, { day: "Fri", profit: 9.3 }],
+                  recentTrades: [{ asset: "XRP", profit: -8.1, date: "Today" }, { asset: "ADA", profit: 6.4, date: "Yesterday" }, { asset: "DOGE", profit: 12.8, date: "2 days ago" }]
+                }
+              },
+              { 
+                id: "5", name: "Tom H.", avatar: "TH", asset: "Dogecoin", assetSymbol: "DOGE", action: "buy", profit: 45.6, timeAgo: "14m ago",
+                stats: { totalTrades: 634, winRate: 79, avgProfit: 25.4, monthlyReturn: 78.2,
+                  weeklyTrades: [{ day: "Mon", profit: 22.1 }, { day: "Tue", profit: 15.8 }, { day: "Wed", profit: 31.2 }, { day: "Thu", profit: -8.4 }, { day: "Fri", profit: 28.6 }],
+                  recentTrades: [{ asset: "DOGE", profit: 45.6, date: "Today" }, { asset: "SHIB", profit: 38.2, date: "Yesterday" }, { asset: "PEPE", profit: 52.1, date: "2 days ago" }]
+                }
+              },
+            ];
+
+        setTraders(mockTraders);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTraders();
+  }, [type]);
+
+  // Refresh data periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Refetch data every 30 seconds
+      const fetchTraders = async () => {
+        try {
+          const response = await api.get('/trades/recent?limit=10');
+          const data = response.data;
+
+          // Filter by type if needed
+          const filteredData = data.filter((trade: any) => {
+            if (type === "stock") {
+              return trade.assetSymbol.match(/^[A-Z]{3,4}$/); // Stock symbols are typically 3-4 letters
+            } else {
+              return true;
+            }
+          });
+
+          // Map to Trader interface format
+          const mappedTraders: Trader[] = filteredData.map((trade: any) => ({
+            id: trade.id,
+            name: trade.traderName,
+            avatar: trade.avatar,
+            asset: trade.asset,
+            assetSymbol: trade.assetSymbol,
+            action: trade.action === "buy" || trade.action === "sell" ? trade.action : "buy",
+            profit: trade.profit,
+            timeAgo: trade.timeAgo,
+            stats: {
+              totalTrades: trade.stats.totalTrades,
+              winRate: trade.stats.winRate,
+              avgProfit: trade.stats.avgProfit,
+              monthlyReturn: trade.stats.monthlyReturn,
+              weeklyTrades: trade.stats.weeklyTrades,
+              recentTrades: trade.stats.recentTrades
+            }
+          }));
+
+          setTraders(mappedTraders);
+        } catch (error) {
+          console.error('Error fetching trader activity:', error);
+        }
+      };
+
+      fetchTraders();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [type]);
 
   const handleAnalyze = (trader: Trader) => {
     setSelectedTrader(trader);
@@ -186,64 +287,88 @@ const LiveTraderInterests = ({ type }: LiveTraderInterestsProps) => {
         </div>
 
         <div className="divide-y divide-border">
-          {traders.map((trader) => (
-            <div 
-              key={trader.id} 
-              className="p-4 hover:bg-muted/30 transition-colors flex items-center justify-between gap-4"
-            >
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center font-semibold text-primary shrink-0">
-                  {trader.avatar}
-                </div>
-                
-                {/* Trader Info */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-foreground truncate">{trader.name}</span>
-                    <span className="text-xs text-muted-foreground">{trader.timeAgo}</span>
+          {isLoading ? (
+            // Loading state
+            <div className="p-4">
+              <div className="animate-pulse space-y-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-muted"></div>
+                      <div className="space-y-2">
+                        <div className="h-4 bg-muted rounded w-24"></div>
+                        <div className="h-3 bg-muted rounded w-16"></div>
+                      </div>
+                    </div>
+                    <div className="h-4 bg-muted rounded w-16"></div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className={`font-medium ${trader.action === "buy" ? "text-accent" : "text-destructive"}`}>
-                      {trader.action === "buy" ? "Bought" : "Sold"}
-                    </span>
-                    <span className="text-muted-foreground">{trader.asset}</span>
-                    <span className="text-muted-foreground">({trader.assetSymbol})</span>
-                  </div>
-                </div>
-
-                {/* Profit/Loss */}
-                <div className={`flex items-center gap-1 font-semibold ${trader.profit >= 0 ? "text-accent" : "text-destructive"}`}>
-                  {trader.profit >= 0 ? (
-                    <TrendingUp className="h-4 w-4" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4" />
-                  )}
-                  <span>{trader.profit >= 0 ? "+" : ""}{trader.profit.toFixed(1)}%</span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-2 shrink-0">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => handleAnalyze(trader)}
-                >
-                  <BarChart2 className="mr-1 h-3 w-3" />
-                  Analyze
-                </Button>
-                <Button 
-                  variant="accent" 
-                  size="sm"
-                  onClick={() => handleCopyTrade(trader)}
-                >
-                  <Copy className="mr-1 h-3 w-3" />
-                  Copy Trade
-                </Button>
+                ))}
               </div>
             </div>
-          ))}
+          ) : traders.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              No recent trading activity
+            </div>
+          ) : (
+            traders.map((trader) => (
+              <div 
+                key={trader.id} 
+                className="p-4 hover:bg-muted/30 transition-colors flex items-center justify-between gap-4"
+              >
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  {/* Avatar */}
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center font-semibold text-primary shrink-0">
+                    {trader.avatar}
+                  </div>
+                  
+                  {/* Trader Info */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-foreground truncate">{trader.name}</span>
+                      <span className="text-xs text-muted-foreground">{trader.timeAgo}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className={`font-medium ${trader.action === "buy" ? "text-accent" : "text-destructive"}`}>
+                        {trader.action === "buy" ? "Bought" : "Sold"}
+                      </span>
+                      <span className="text-muted-foreground">{trader.asset}</span>
+                      <span className="text-muted-foreground">({trader.assetSymbol})</span>
+                    </div>
+                  </div>
+
+                  {/* Profit/Loss */}
+                  <div className={`flex items-center gap-1 font-semibold ${trader.profit >= 0 ? "text-accent" : "text-destructive"}`}>
+                    {trader.profit >= 0 ? (
+                      <TrendingUp className="h-4 w-4" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4" />
+                    )}
+                    <span>{trader.profit >= 0 ? "+" : ""}{trader.profit.toFixed(1)}%</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleAnalyze(trader)}
+                  >
+                    <BarChart2 className="mr-1 h-3 w-3" />
+                    Analyze
+                  </Button>
+                  <Button 
+                    variant="accent" 
+                    size="sm"
+                    onClick={() => handleCopyTrade(trader)}
+                  >
+                    <Copy className="mr-1 h-3 w-3" />
+                    Copy Trade
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

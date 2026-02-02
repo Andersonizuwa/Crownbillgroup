@@ -465,11 +465,11 @@ const Trade = () => {
           <div className="card-elevated p-5">
             <div className="flex items-center gap-2 text-muted-foreground mb-2">
               <Clock className="h-4 w-4" />
-              <span className="text-sm">Today's Change</span>
+              <span className="text-xs">Today's Change</span>
             </div>
-            <p className={`text-2xl font-bold ${portfolioSummary.dayChange >= 0 ? "text-accent" : "text-destructive"}`}>
+            <p className={`text-sm font-bold ${portfolioSummary.dayChange >= 0 ? "text-accent" : "text-destructive"}`}>
               {portfolioSummary.dayChange >= 0 ? "+" : ""}${portfolioSummary.dayChange.toLocaleString()}
-              <span className="text-sm ml-1">
+              <span className="text-xs ml-1">
                 ({portfolioSummary.dayChangePercent >= 0 ? "+" : ""}{portfolioSummary.dayChangePercent}%)
               </span>
             </p>
@@ -477,11 +477,11 @@ const Trade = () => {
           <div className="card-elevated p-5">
             <div className="flex items-center gap-2 text-muted-foreground mb-2">
               <BarChart3 className="h-4 w-4" />
-              <span className="text-sm">Total Gain/Loss</span>
+              <span className="text-xs">Total Gain/Loss</span>
             </div>
-            <p className={`text-2xl font-bold ${portfolioSummary.totalGain >= 0 ? "text-accent" : "text-destructive"}`}>
+            <p className={`text-sm font-bold ${portfolioSummary.totalGain >= 0 ? "text-accent" : "text-destructive"}`}>
               {portfolioSummary.totalGain >= 0 ? "+" : ""}${portfolioSummary.totalGain.toLocaleString()}
-              <span className="text-sm ml-1">
+              <span className="text-xs ml-1">
                 ({portfolioSummary.totalGainPercent >= 0 ? "+" : ""}{portfolioSummary.totalGainPercent}%)
               </span>
             </p>
@@ -643,8 +643,8 @@ const Trade = () => {
                   <p className="font-semibold text-foreground">${selectedStock?.price.toFixed(2)}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Today's Change</span>
-                  <p className={`font-semibold ${(selectedStock?.change || 0) >= 0 ? "text-accent" : "text-destructive"}`}>
+                  <span className="text-muted-foreground text-xs">Today's Change</span>
+                  <p className={`font-semibold text-xs ${(selectedStock?.change || 0) >= 0 ? "text-accent" : "text-destructive"}`}>
                     {(selectedStock?.change || 0) >= 0 ? "+" : ""}{selectedStock?.changePercent.toFixed(2)}%
                   </p>
                 </div>

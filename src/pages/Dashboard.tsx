@@ -55,17 +55,16 @@ const Dashboard = () => {
   useEffect(() => {
     if (!loading && !user) {
       navigate("/login");
+      return;
+    }
+    
+    if (!loading && user) {
+      fetchUserData();
     }
   }, [user, loading, navigate]);
 
-  useEffect(() => {
-    if (user) {
-      fetchUserData();
-    }
-  }, [user]);
-
   const fetchUserData = async () => {
-    if (!user) return;
+    if (!user || loading) return;
     
     setIsLoading(true);
     

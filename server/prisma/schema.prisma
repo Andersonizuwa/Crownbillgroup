@@ -42,6 +42,7 @@ model deposit {
   transactionHash String?
   proofNotes      String?   @db.Text
   status          String    @default("pending")
+  settlementDetails Json?     // Store settlement details as JSON
   adminNotes      String?   @db.Text
   reviewedBy      String?
   reviewedAt      DateTime?

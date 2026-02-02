@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, magicLink, resetPasswordRequest, resetPassword, forgotPassword, verifyToken, changePassword, getLoginHistory } from '../controllers/auth.controller';
+import { register, login, magicLink, resetPasswordRequest, resetPassword, forgotPassword, verifyToken, changePassword, getLoginHistory, logout, refreshToken } from '../controllers/auth.controller';
 import { upload } from '../lib/upload';
 import { authRateLimiter } from '../middleware/security.middleware';
 import { validateRegistration, validateLogin } from '../middleware/validation.middleware';
@@ -14,6 +14,7 @@ router.post('/register', upload.fields([
   { name: 'addressDocument', maxCount: 1 }
 ]), validateRegistration, register);
 router.post('/login', validateLogin, login);
+router.post('/refresh-token', refreshToken);
 router.post('/magic-link', magicLink);
 router.post('/reset-password-request', resetPasswordRequest);
 router.post('/reset-password', resetPassword);
@@ -32,6 +33,7 @@ router.get('/test-email', async (req, res) => {
 
 // Security endpoints
 router.post('/change-password', authenticate, changePassword);
+router.post('/logout', authenticate, logout);
 
 router.get('/login-history', authenticate, getLoginHistory);
 

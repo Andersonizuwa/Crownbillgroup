@@ -17,7 +17,7 @@ router.patch('/users/:id/role', adminController.updateUserRole);
 router.delete('/users/:id', adminController.adminDeleteUser);
 
 // 4.3 Admin Financial Management
-router.get('/deposits', adminController.getPendingDeposits);
+router.get('/deposits', adminController.getDeposits);
 router.patch('/deposits/:id', adminController.reviewDeposit);
 router.get('/withdrawals', adminController.getPendingWithdrawals);
 router.patch('/withdrawals/:id', adminController.reviewWithdrawal);

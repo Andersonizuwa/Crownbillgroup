@@ -11,7 +11,7 @@ import userRoutes from './routes/user.routes';
 import adminRoutes from './routes/admin.routes';
 import tradeRoutes from './routes/trade.routes';
 import { priceSimulator } from './lib/priceSimulator';
-import { handleFlutterwaveWebhook } from './controllers/user.controller';
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -48,8 +48,6 @@ app.use('/api/v1/user', userRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/trades', tradeRoutes);
 
-// Webhook routes (no authentication required)
-app.post('/api/v1/webhooks/flutterwave', handleFlutterwaveWebhook);
 
 app.get('/', (req, res) => {
   res.send('Server is running');

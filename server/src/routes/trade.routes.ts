@@ -5,7 +5,8 @@ import {
   getHoldings,
   getTradeHistory,
   updateHoldingPrices,
-  getCurrentPrices
+  getCurrentPrices,
+  getRecentTrades
 } from '../controllers/trade.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
@@ -13,6 +14,9 @@ const router = Router();
 
 // Market data (public)
 router.get('/prices', getCurrentPrices);
+
+// Recent trades (public)
+router.get('/recent', getRecentTrades);
 
 // Protected routes
 router.use(authenticate);

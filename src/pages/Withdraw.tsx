@@ -59,11 +59,7 @@ const Withdraw = () => {
 
   const cryptoOptions = [
     { value: "btc", name: "Bitcoin (BTC)" },
-    { value: "eth", name: "Ethereum (ETH)" },
     { value: "usdt", name: "Tether (USDT)" },
-    { value: "usdc", name: "USD Coin (USDC)" },
-    { value: "bnb", name: "BNB" },
-    { value: "sol", name: "Solana (SOL)" },
   ];
 
   useEffect(() => {

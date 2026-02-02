@@ -32,7 +32,14 @@ export const validateLogin = [
 ];
 
 export const validateDeposit = [
-  body('amount').isNumeric().custom(val => val > 0).withMessage('Amount must be greater than 0'),
+  body('amount').isNumeric().custom((val, { req }) => {
+    // For crypto deposits, allow 0 amount (will be specified during proof submission)
+    if (req.body.type === 'crypto_deposit') {
+      return val >= 0;
+    }
+    // For fiat deposits, require amount > 0
+    return val > 0;
+  }).withMessage('Amount must be greater than 0'),
   body('paymentMethod').trim().escape().notEmpty(),
   body('cryptoType').optional().trim().escape(),
   body('transactionHash').optional().trim().escape(),

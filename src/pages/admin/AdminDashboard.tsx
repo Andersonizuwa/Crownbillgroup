@@ -1801,11 +1801,25 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
   const { toast } = useToast();
   const [deposits, setDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedDeposit, setSelectedDeposit] = useState<any>(null);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [settlementDetails, setSettlementDetails] = useState({
+    bankName: "",
+    accountNumber: "",
+    accountHolderName: "",
+    referenceCode: ""
+  });
 
   const getUserEmail = (userId: string) => {
     const user = users.find(u => u.userId === userId);
     return user?.email || 'Unknown';
+  };
+
+  const getUserName = (userId: string) => {
+    const user = users.find(u => u.userId === userId);
+    return user?.fullName || 'Unknown';
   };
 
   const fetchDeposits = async () => {
@@ -1838,25 +1852,90 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
     }
   };
 
+  const assignSettlementDetails = async () => {
+    if (!selectedDeposit) return;
+    
+    try {
+      // Generate reference code if not provided
+      const refCode = settlementDetails.referenceCode || `REF-${Math.floor(100000 + Math.random() * 900000)}`;
+      
+      await api.patch(`/admin/deposits/${selectedDeposit.id}`, {
+        status: 'awaiting_payment',
+        settlementDetails: {
+          bankName: settlementDetails.bankName,
+          accountNumber: settlementDetails.accountNumber,
+          accountHolderName: settlementDetails.accountHolderName,
+          referenceCode: refCode
+        }
+      });
+      
+      toast({
+        title: "Success",
+        description: "Settlement details assigned successfully"
+      });
+      
+      setIsAssignModalOpen(false);
+      setSettlementDetails({
+        bankName: "",
+        accountNumber: "",
+        accountHolderName: "",
+        referenceCode: ""
+      });
+      setSelectedDeposit(null);
+      fetchDeposits();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <Badge variant="default">Approved</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive">Rejected</Badge>;
+      case 'pending_matching':
+        return <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">Pending Matching</Badge>;
+      case 'awaiting_payment':
+        return <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20">Awaiting Payment</Badge>;
+      case 'awaiting_confirmation':
+        return <Badge className="bg-purple-500/10 text-purple-500 border-purple-500/20">Awaiting Confirmation</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Deposit Management</h2>
-          <p className="text-muted-foreground">Approve or reject user deposits</p>
+          <p className="text-muted-foreground">Manage user deposits and payment confirmations</p>
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-48">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="all">All Deposits</SelectItem>
+            <SelectItem value="pending_matching">Pending Matching</SelectItem>
+            <SelectItem value="awaiting_payment">Awaiting Payment</SelectItem>
+            <SelectItem value="awaiting_confirmation">Awaiting Confirmation</SelectItem>
+            <SelectItem value="pending">Pending Approval</SelectItem>
             <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
           </SelectContent>
         </Select>
       </div>
+      
       <div className="card-elevated">
-        {loading ? <div className="p-8 text-center">Loading...</div> : (
+        {loading ? (
+          <div className="p-8 text-center">Loading...</div>
+        ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -1871,36 +1950,258 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
             <TableBody>
               {deposits.map((d) => (
                 <TableRow key={d.id}>
-                  <TableCell>{new Date(d.createdAt).toLocaleDateString()}</TableCell>
-                  <TableCell>{getUserEmail(d.userId)}</TableCell>
-                  <TableCell className="capitalize">{d.paymentMethod} {d.cryptoType ? `(${d.cryptoType.toUpperCase()})` : ''}</TableCell>
-                  <TableCell className="font-semibold">${d.amount.toLocaleString()}</TableCell>
+                  <TableCell>{new Date(d.createdAt).toLocaleString()}</TableCell>
                   <TableCell>
-                    <Badge variant={d.status === 'approved' ? 'default' : d.status === 'rejected' ? 'destructive' : 'secondary'}>
-                      {d.status}
-                    </Badge>
+                    <div>
+                      <div className="font-medium">{getUserEmail(d.userId)}</div>
+                      <div className="text-sm text-muted-foreground">{getUserName(d.userId)}</div>
+                    </div>
                   </TableCell>
+                  <TableCell className="capitalize">
+                    {d.paymentMethod === 'zelle' ? 'Zelle' : 
+                     d.paymentMethod === 'square' ? 'Square' : 
+                     d.paymentMethod === 'paypal' ? 'PayPal' : 
+                     d.paymentMethod === 'crypto' ? `${d.cryptoType?.toUpperCase() || 'Crypto'}` : 
+                     d.paymentMethod}
+                  </TableCell>
+                  <TableCell className="font-semibold">${d.amount.toLocaleString()}</TableCell>
+                  <TableCell>{getStatusBadge(d.status)}</TableCell>
                   <TableCell>
-                    {d.status === 'pending' && (
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="accent" onClick={() => updateDeposit(d.id, d.userId, d.amount, 'approved')}>
-                          <CheckCircle className="h-4 w-4 mr-1" />Approve
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedDeposit(d);
+                          setIsViewModalOpen(true);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />View
+                      </Button>
+                      
+                      {d.status === 'pending_matching' && (
+                        <Button
+                          size="sm"
+                          variant="accent"
+                          onClick={() => {
+                            setSelectedDeposit(d);
+                            setIsAssignModalOpen(true);
+                          }}
+                        >
+                          <DollarSign className="h-4 w-4 mr-1" />Assign Details
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => updateDeposit(d.id, d.userId, d.amount, 'rejected')}>
-                          <XCircle className="h-4 w-4 mr-1" />Reject
-                        </Button>
-                      </div>
-                    )}
+                      )}
+                      
+                      {d.status === 'awaiting_confirmation' && (
+                        <div className="flex gap-2">
+                          <div className="relative group">
+                            <Button
+                              size="sm"
+                              variant="accent"
+                              onClick={() => updateDeposit(d.id, d.userId, d.amount, 'approved')}
+                              disabled={!d.transactionHash && (!d.settlementDetails || !d.settlementDetails.proofFileUrls || d.settlementDetails.proofFileUrls.length === 0)}
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1" />Approve
+                            </Button>
+                            {!d.transactionHash && (!d.settlementDetails || !d.settlementDetails.proofFileUrls || d.settlementDetails.proofFileUrls.length === 0) && (
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                Proof of payment required
+                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-800"></div>
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updateDeposit(d.id, d.userId, d.amount, 'rejected')}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />Reject
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {(d.status === 'pending' || d.status === 'awaiting_payment') && (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="accent"
+                            onClick={() => updateDeposit(d.id, d.userId, d.amount, 'approved')}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" />Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updateDeposit(d.id, d.userId, d.amount, 'rejected')}
+                          >
+                            <XCircle className="h-4 w-4 mr-1" />Reject
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
               {deposits.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No deposits found</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    No deposits found
+                  </TableCell>
+                </TableRow>
               )}
             </TableBody>
           </Table>
         )}
       </div>
+
+      {/* Assign Settlement Details Modal */}
+      <Dialog open={isAssignModalOpen} onOpenChange={setIsAssignModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Settlement Details</DialogTitle>
+            <DialogDescription>
+              Provide settlement details for {selectedDeposit && getUserEmail(selectedDeposit.userId)}
+            </DialogDescription>
+            {selectedDeposit && (
+              <div className="mt-2 p-3 bg-muted rounded-lg">
+                <div className="text-sm font-medium">Payment Method: 
+                  <span className="capitalize ml-1">
+                    {selectedDeposit.paymentMethod === 'zelle' ? 'Zelle' : 
+                     selectedDeposit.paymentMethod === 'square' ? 'Square' : 
+                     selectedDeposit.paymentMethod === 'paypal' ? 'PayPal' : 
+                     selectedDeposit.paymentMethod === 'crypto' ? `${selectedDeposit.cryptoType?.toUpperCase() || 'Crypto'}` : 
+                     selectedDeposit.paymentMethod}
+                  </span>
+                </div>
+                <div className="text-sm">Amount: <span className="font-semibold">${selectedDeposit.amount.toLocaleString()}</span></div>
+              </div>
+            )}
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="bankName">Bank Name</Label>
+              <Input
+                id="bankName"
+                value={settlementDetails.bankName}
+                onChange={(e) => setSettlementDetails({...settlementDetails, bankName: e.target.value})}
+                placeholder="e.g., Chase Bank"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="accountNumber">Account Number</Label>
+              <Input
+                id="accountNumber"
+                value={settlementDetails.accountNumber}
+                onChange={(e) => setSettlementDetails({...settlementDetails, accountNumber: e.target.value})}
+                placeholder="Account number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="accountHolder">Account Holder Name</Label>
+              <Input
+                id="accountHolder"
+                value={settlementDetails.accountHolderName}
+                onChange={(e) => setSettlementDetails({...settlementDetails, accountHolderName: e.target.value})}
+                placeholder="Account holder name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="referenceCode">Reference Code (Optional)</Label>
+              <Input
+                id="referenceCode"
+                value={settlementDetails.referenceCode}
+                onChange={(e) => setSettlementDetails({...settlementDetails, referenceCode: e.target.value})}
+                placeholder="Will auto-generate if empty"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAssignModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="accent" onClick={assignSettlementDetails}>
+              Assign Details
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Deposit Details Modal */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Deposit Details</DialogTitle>
+          </DialogHeader>
+          {selectedDeposit && (
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground text-xs">User Email</Label>
+                  <p className="font-medium">{getUserEmail(selectedDeposit.userId)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">User Name</Label>
+                  <p className="font-medium">{getUserName(selectedDeposit.userId)}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Amount</Label>
+                  <p className="font-semibold text-lg">${selectedDeposit.amount.toLocaleString()}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Payment Method</Label>
+                  <p className="font-medium capitalize">
+                    {selectedDeposit.paymentMethod === 'bank' ? 'Bank Transfer' : 
+                     selectedDeposit.paymentMethod === 'zelle' ? 'Zelle' : 
+                     selectedDeposit.paymentMethod === 'square' ? 'Square' : 
+                     selectedDeposit.paymentMethod === 'paypal' ? 'PayPal' : 
+                     selectedDeposit.paymentMethod === 'crypto' ? `${selectedDeposit.cryptoType?.toUpperCase() || 'Crypto'}` : 
+                     selectedDeposit.paymentMethod}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Status</Label>
+                  <div className="mt-1">{getStatusBadge(selectedDeposit.status)}</div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground text-xs">Date</Label>
+                  <p className="font-medium">{new Date(selectedDeposit.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+              
+              {selectedDeposit.settlementDetails && (
+                <div className="p-4 bg-muted/30 rounded-lg">
+                  <h4 className="font-semibold mb-3">Settlement Details</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Bank Name</Label>
+                      <p className="font-medium">{selectedDeposit.settlementDetails.bankName}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Account Number</Label>
+                      <p className="font-medium font-mono">{selectedDeposit.settlementDetails.accountNumber}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Account Holder</Label>
+                      <p className="font-medium">{selectedDeposit.settlementDetails.accountHolderName}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Reference Code</Label>
+                      <p className="font-medium font-mono">{selectedDeposit.settlementDetails.referenceCode}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {selectedDeposit.proofNotes && (
+                <div>
+                  <Label className="text-muted-foreground text-xs">Proof Notes</Label>
+                  <p className="font-medium mt-1 p-3 bg-muted/30 rounded-lg">{selectedDeposit.proofNotes}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

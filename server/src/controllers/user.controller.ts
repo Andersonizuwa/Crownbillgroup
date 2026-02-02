@@ -1,143 +1,16 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { v4 as uuidv4 } from 'uuid';
-import Flutterwave from 'flutterwave-node-v3';
 
 interface AuthRequest extends Request {
   user?: any;
 }
 
-// Initialize Flutterwave
-const flw = new Flutterwave(
-  process.env.FLUTTERWAVE_PUBLIC_KEY!, 
-  process.env.FLUTTERWAVE_SECRET_KEY!
-);
 
-export const initializeFlutterwavePayment = async (req: AuthRequest, res: Response) => {
-  try {
-    const { amount, email } = req.body;
-    
-    if (!amount || !email) {
-      return res.status(400).json({ error: 'Amount and email are required' });
-    }
-    
-    // Prepare Flutterwave payment data
-    const paymentData = {
-      tx_ref: `deposit_${req.user.userId}_${Date.now()}`,
-      amount: parseFloat(String(amount)),
-      currency: 'USD',
-      redirect_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/fund-account`,
-      customer: {
-        email: email,
-        name: req.user.firstName ? `${req.user.firstName} ${req.user.lastName || ''}`.trim() : 'User',
-      },
-      customizations: {
-        title: 'Fund Your Account',
-        description: 'Deposit to your investment account',
-      },
-    };
-    
-    // Initialize the transaction
-    const response = await flw.Payment.initialize(paymentData);
-    
-    res.json({
-      status: 'success',
-      message: 'Payment initialized successfully',
-      data: response,
-    });
-  } catch (error: any) {
-    console.error('Error initializing Flutterwave payment:', error);
-    res.status(500).json({ error: error.message || 'Error initializing payment' });
-  }
-};
 
-export const handleFlutterwaveWebhook = async (req: Request, res: Response) => {
-  try {
-    const secret_hash = process.env.FLUTTERWAVE_WEBHOOK_HASH;
-    const signature = req.headers['verif-hash'];
-    
-    // Check if the signature matches the secret hash
-    if (!signature || signature !== secret_hash) {
-      return res.status(401).send('Unauthorized');
-    }
-    
-    // Process the webhook payload
-    const payload = req.body;
-    
-    if (payload.event === 'charge.completed' && payload.data.status === 'successful') {
-      const tx_ref = payload.data.tx_ref;
-      const flw_ref = payload.data.flw_ref;
-      const amount = payload.data.amount;
-      const userId = payload.data.meta?.userId || payload.data.customer.id; // Extract user ID
-      
-      // Find the deposit record by transaction reference
-      // Initially, the transactionHash will be null, so we'll look for the most recent flutterwave deposit
-      const deposit = await prisma.deposit.findFirst({
-        where: {
-          amount: parseFloat(String(payload.data.amount)),
-          userId: payload.data.meta?.userId || payload.data.customer.id,
-          paymentMethod: 'flutterwave',
-          transactionHash: null // Initially null when created via Flutterwave
-        },
-        orderBy: {
-          createdAt: 'desc' // Get the most recent one
-        }
-      });
-      
-      if (deposit) {
-        // Update the deposit with the transaction reference and approve it
-        await prisma.deposit.update({
-          where: { id: deposit.id },
-          data: { 
-            transactionHash: flw_ref, // Update with actual Flutterwave reference
-            status: 'approved' 
-          }
-        });
-        
-        // Add funds to user's wallet
-        const wallet = await prisma.wallet.findUnique({
-          where: { userId: deposit.userId }
-        });
-        
-        if (wallet) {
-          await prisma.wallet.update({
-            where: { userId: deposit.userId },
-            data: { balance: { increment: deposit.amount } }
-          });
-        } else {
-          // Create wallet if it doesn't exist
-          await prisma.wallet.create({
-            data: {
-              id: uuidv4(),
-              userId: deposit.userId,
-              balance: deposit.amount,
-              currency: 'USD',
-              updatedAt: new Date()
-            }
-          });
-        }
-        
-        // Create a transaction record
-        await prisma.transaction.create({
-          data: {
-            id: uuidv4(),
-            userId: deposit.userId,
-            type: 'deposit',
-            amount: deposit.amount,
-            description: `Deposit via Flutterwave: ${flw_ref}`,
-            status: 'completed',
-            referenceId: flw_ref
-          }
-        });
-      }
-    }
-    
-    res.status(200).send('OK');
-  } catch (error) {
-    console.error('Error handling Flutterwave webhook:', error);
-    res.status(500).send('Error processing webhook');
-  }
-};
+
+
+
 
 export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
@@ -273,14 +146,28 @@ export const getWallet = async (req: AuthRequest, res: Response) => {
 export const createDeposit = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user.userId;
-    const { amount, paymentMethod, cryptoType, transactionHash, proofNotes } = req.body;
+    const { amount, paymentMethod, cryptoType, transactionHash, proofNotes, type } = req.body;
 
-    if (!amount || !paymentMethod) {
+    if (amount === undefined || amount === null || paymentMethod === undefined || paymentMethod === null) {
       return res.status(400).json({ error: 'Amount and payment method are required' });
+    }
+
+    // Enforce $10 minimum for fiat deposits
+    if (paymentMethod !== 'crypto' && Number(amount) < 10) {
+      return res.status(400).json({ error: 'Minimum deposit amount is $10' });
     }
 
     if (paymentMethod === 'crypto' && !cryptoType) {
       return res.status(400).json({ error: 'Crypto type is required for crypto deposits' });
+    }
+
+    // Set initial status based on deposit type
+    let initialStatus = 'pending';
+    if (type === 'fiat_intent') {
+      initialStatus = 'pending_matching';
+    } else if (paymentMethod === 'crypto') {
+      // For crypto deposits, set to awaiting_confirmation to require proof submission
+      initialStatus = 'awaiting_confirmation';
     }
 
     const deposit = await prisma.deposit.create({
@@ -292,7 +179,7 @@ export const createDeposit = async (req: AuthRequest, res: Response) => {
         cryptoType: cryptoType || null,
         transactionHash: transactionHash || null,
         proofNotes: proofNotes || null,
-        status: 'pending',
+        status: initialStatus,
         updatedAt: new Date()
       }
     });
@@ -301,6 +188,84 @@ export const createDeposit = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error creating deposit:', error);
     res.status(500).json({ error: 'Error creating deposit request' });
+  }
+};
+
+// Note: The assignSettlementDetails function was removed to prevent automatic assignment.
+// Settlement details are now assigned manually by the admin in the admin panel.
+
+// Endpoint to submit proof of payment
+export const submitDepositProof = async (req: AuthRequest, res: Response) => {
+  try {
+    const depositId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const { transactionHash, proofNotes } = req.body;
+    
+    // If files were uploaded, process them
+    const files = req.files as any[] || [];
+    
+    // Store file paths if any files were uploaded
+    const fileUrls: string[] = [];
+    if (files && files.length > 0) {
+      // In a real application, you'd save files to cloud storage (AWS S3, etc.)
+      // For now, we'll just store the filenames as placeholder
+      for (const file of files) {
+        // Save file to storage and get URL
+        // fileUrls.push(file.path); // This would be the actual file URL
+        fileUrls.push(`/uploads/${file.filename}`); // Placeholder
+      }
+    }
+    
+        // Get existing settlement details
+    const existingDeposit = await prisma.deposit.findUnique({
+      where: { id: depositId },
+    });
+    
+    // Prepare updated settlement details with proof files
+    let updatedSettlementDetails = existingDeposit?.settlementDetails ? {...existingDeposit.settlementDetails as any} : {};
+    if (fileUrls.length > 0) {
+      updatedSettlementDetails = {
+        ...updatedSettlementDetails,
+        proofFileUrls: fileUrls
+      };
+    }
+    
+    // Update deposit with proof information
+    const updatedDeposit = await prisma.deposit.update({
+      where: { id: depositId },
+      data: {
+        status: 'awaiting_confirmation',
+        transactionHash: transactionHash || null,
+        proofNotes: proofNotes || null,
+        settlementDetails: updatedSettlementDetails,
+        updatedAt: new Date()
+      }
+    });
+    
+    res.json({ message: 'Proof submitted successfully', deposit: updatedDeposit });
+  } catch (error) {
+    console.error('Error submitting deposit proof:', error);
+    res.status(500).json({ error: 'Error submitting proof' });
+  }
+};
+
+// Endpoint to get a specific deposit
+export const getDeposit = async (req: AuthRequest, res: Response) => {
+  try {
+    const depositId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const userId = req.user.userId;
+    
+    const deposit = await prisma.deposit.findUnique({
+      where: { id: depositId, userId },
+    });
+    
+    if (!deposit) {
+      return res.status(404).json({ error: 'Deposit not found' });
+    }
+    
+    res.json(deposit);
+  } catch (error) {
+    console.error('Error fetching deposit:', error);
+    res.status(500).json({ error: 'Error fetching deposit' });
   }
 };
 
@@ -535,5 +500,47 @@ export const getWithdrawals = async (req: AuthRequest, res: Response) => {
   } catch (error) {
     console.error('Error fetching withdrawals:', error);
     res.status(500).json({ error: 'Error fetching withdrawals' });
+  }
+};
+
+export const cancelDeposit = async (req: AuthRequest, res: Response) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const userId = req.user.userId;
+  
+  try {
+    // Find the deposit
+    const deposit = await prisma.deposit.findUnique({
+      where: { id },
+    });
+    
+    if (!deposit) {
+      return res.status(404).json({ error: 'Deposit not found' });
+    }
+    
+    // Check if the deposit belongs to the user
+    if (deposit.userId !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    // Only allow cancellation for certain statuses (e.g., awaiting_payment, pending_matching)
+    if (deposit.status !== 'awaiting_payment' && deposit.status !== 'pending_matching') {
+      return res.status(400).json({ 
+        error: 'Cannot cancel deposit in current status' 
+      });
+    }
+    
+    // Update deposit status to cancelled
+    const updatedDeposit = await prisma.deposit.update({
+      where: { id },
+      data: {
+        status: 'cancelled',
+        updatedAt: new Date(),
+      },
+    });
+    
+    res.json(updatedDeposit);
+  } catch (error) {
+    console.error('Error cancelling deposit:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };

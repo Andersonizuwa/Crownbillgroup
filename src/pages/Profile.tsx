@@ -32,6 +32,7 @@ import {
   CreditCard,
   FileText,
   CheckCircle2,
+  XCircle,
   AlertCircle,
   Clock,
   Edit2,
@@ -57,7 +58,18 @@ const Profile = () => {
 
   useEffect(() => {
     fetchProfile();
+    fetchLoginHistory();
   }, []);
+  
+  const fetchLoginHistory = async () => {
+    try {
+      const response = await api.get('/auth/login-history');
+      setLoginHistory(response.data);
+    } catch (error: any) {
+      console.error('Error fetching login history:', error);
+      // Don't show error toast for login history as it's not critical
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -478,30 +490,62 @@ const Profile = () => {
                       </DialogHeader>
                       <div className="py-4">
                         {loginHistory.length > 0 ? (
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Date & Time</TableHead>
-                                <TableHead>IP Address</TableHead>
-                                <TableHead>User Agent</TableHead>
-                                <TableHead>Status</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {loginHistory.map((entry: any, index: number) => (
-                                <TableRow key={index}>
-                                  <TableCell>{new Date(entry.timestamp).toLocaleString()}</TableCell>
-                                  <TableCell>{entry.ip}</TableCell>
-                                  <TableCell>{entry.userAgent}</TableCell>
-                                  <TableCell>
-                                    <span className={`px-2 py-1 rounded-full text-xs ${entry.success ? 'bg-accent/10 text-accent' : 'bg-destructive/10 text-destructive'}`}>
-                                      {entry.success ? 'Success' : 'Failed'}
+                          <div className="space-y-3">
+                            {loginHistory.map((entry: any, index: number) => (
+                              <div 
+                                key={index} 
+                                className={`p-4 rounded-lg border ${
+                                  entry.success ? 'bg-accent/5 border-accent/20' : 'bg-destructive/5 border-destructive/20'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    {entry.success ? (
+                                      <CheckCircle2 className="h-5 w-5 text-accent" />
+                                    ) : (
+                                      <AlertCircle className="h-5 w-5 text-destructive" />
+                                    )}
+                                    <span className={`font-medium ${
+                                      entry.success ? 'text-accent' : 'text-destructive'
+                                    }`}>
+                                      {entry.success ? 'Successful Login' : 'Failed Login Attempt'}
                                     </span>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                                  </div>
+                                  <span className="text-sm text-muted-foreground">
+                                    {new Date(entry.timestamp).toLocaleString()}
+                                  </span>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground">Location: </span>
+                                    <span>
+                                      {entry.ip === '::1' ? 'Local Machine' : entry.ip || 'Unknown'}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-muted-foreground">Device: </span>
+                                    <span className="capitalize">
+                                      {entry.userAgent ? 
+                                        entry.userAgent.includes('Chrome') ? 'Chrome' :
+                                        entry.userAgent.includes('Firefox') ? 'Firefox' :
+                                        entry.userAgent.includes('Safari') ? 'Safari' :
+                                        entry.userAgent.includes('Edge') ? 'Edge' :
+                                        'Unknown Browser'
+                                      : 'Unknown Device'}
+                                    </span>
+                                  </div>
+                                </div>
+                                
+                                {!entry.success && entry.failureReason && (
+                                  <div className="mt-2 pt-2 border-t border-border">
+                                    <span className="text-muted-foreground text-sm">Reason: </span>
+                                    <span className="text-sm">{entry.failureReason}</span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         ) : (
                           <p className="text-center text-muted-foreground py-4">No login history available</p>
                         )}

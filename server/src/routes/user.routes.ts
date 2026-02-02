@@ -14,10 +14,15 @@ import {
   deleteCopyTradeAttempt,
   getGrantApplications,
   createGrantApplication,
-  initializeFlutterwavePayment 
+  submitDepositProof,
+  getDeposit,
+  cancelDeposit
 } from '../controllers/user.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { validateDeposit, validateWithdrawal, validateGrantApplication } from '../middleware/validation.middleware';
+import multer from 'multer';
+
+const upload = multer({ dest: 'uploads/' }); // For file uploads
 
 const router = Router();
 
@@ -33,7 +38,9 @@ router.get('/wallet', getWallet);
 // Deposit routes
 router.post('/deposits', validateDeposit, createDeposit);
 router.get('/deposits', getDeposits);
-router.post('/flutterwave-initialize', initializeFlutterwavePayment);
+router.patch('/deposits/:id/proof', upload.array('files'), submitDepositProof);
+router.patch('/deposits/:id/cancel', cancelDeposit);
+router.get('/deposits/:id', getDeposit);
 
 // Withdrawal route
 router.post('/withdrawals', validateWithdrawal, createWithdrawal);
