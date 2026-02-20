@@ -19,7 +19,9 @@ import {
   Mail,
   ArrowDownToLine,
   History,
-  PieChart
+  PieChart,
+  Lock,
+  Zap
 } from "lucide-react";
 
 interface WalletData {
@@ -48,6 +50,7 @@ const Dashboard = () => {
   const { toast } = useToast();
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [grantApplications, setGrantApplications] = useState<GrantApplication[]>([]);
+  const [lockedInvestments, setLockedInvestments] = useState<any[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [portfolioValue, setPortfolioValue] = useState<number>(0);
@@ -57,7 +60,7 @@ const Dashboard = () => {
       navigate("/login");
       return;
     }
-    
+
     if (!loading && user) {
       fetchUserData();
     }
@@ -65,9 +68,9 @@ const Dashboard = () => {
 
   const fetchUserData = async () => {
     if (!user || loading) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       // Fetch profile from backend API
       const profileResponse = await api.get('/user/profile');
@@ -104,6 +107,12 @@ const Dashboard = () => {
           ...g,
           requestedAmount: parseFloat(g.requestedAmount)
         })));
+      }
+
+      // Fetch locked investments
+      const investmentsResponse = await api.get('/investments/my-investments');
+      if (investmentsResponse.data) {
+        setLockedInvestments(investmentsResponse.data);
       }
     } catch (error: any) {
       console.error('Error fetching user data:', error);
@@ -155,7 +164,7 @@ const Dashboard = () => {
         console.error('Error logging reach out:', error);
       }
     }
-    
+
     // Open email client
     const subject = encodeURIComponent(`Grant Application Inquiry - ${grantType}`);
     const body = encodeURIComponent(`Hello,
@@ -207,6 +216,38 @@ Best regards`);
           </p>
         </div>
 
+        {/* CBPTA Promotional Banner */}
+        <div className="relative rounded-2xl overflow-hidden mb-12 group">
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-primary via-accent to-primary opacity-20 group-hover:opacity-40 blur transition duration-1000 group-hover:duration-200 animate-pulse-slow"></div>
+          <div className="relative bg-card/80 backdrop-blur-md border border-primary/20 p-8 shadow-xl flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+              <Zap className="w-48 h-48 text-primary" />
+            </div>
+
+            <div className="flex-1 space-y-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest border border-primary/20">
+                <Zap className="w-3 h-3" />
+                Elite Algorithm Active
+              </div>
+              <h3 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
+                CrownBill <span className="text-primary italic">Proprietary logic</span> is live!
+              </h3>
+              <p className="text-muted-foreground text-lg max-w-xl leading-relaxed">
+                Take advantage of our institutional-grade automated trading system with <span className="text-white font-bold px-2 py-0.5 rounded bg-white/10">70% Term Yield</span>.
+              </p>
+            </div>
+
+            <div className="shrink-0 w-full md:w-auto">
+              <Link to="/proprietary-algorithm">
+                <Button variant="accent" size="lg" className="w-full md:w-auto px-8 py-8 text-lg font-black shadow-lg shadow-accent/20 group/btn transition-all">
+                  ACTIVATE 70% YIELD
+                  <ArrowRight className="ml-2 h-6 w-6 group-hover/btn:translate-x-1 transition-transform" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+
         {/* Account Status Banner - Inactive until a grant is approved */}
         {(() => {
           const hasAnyGrant = grantApplications.length > 0;
@@ -223,30 +264,58 @@ Best regards`);
 
           return (
             <div className={`rounded-lg p-4 mb-8 border ${getAccountStatusColor(effectiveStatus)}`}>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
                   {effectiveStatus === 'active' ? (
-                    <CheckCircle2 className="h-5 w-5" />
+                    <CheckCircle2 className="h-6 w-6 text-accent mt-1" />
                   ) : effectiveStatus === 'inactive' ? (
-                    <XCircle className="h-5 w-5" />
+                    <AlertCircle className="h-6 w-6 text-warning mt-1" />
                   ) : (
-                    <AlertCircle className="h-5 w-5" />
+                    <Clock className="h-6 w-6 text-muted-foreground mt-1" />
                   )}
-                  <div>
-                    <p className="font-medium capitalize">
-                      Account Status: {effectiveStatus === 'inactive' ? 'Inactive' : effectiveStatus === 'active' ? 'Active' : 'Pending'}
+                  <div className="space-y-2">
+                    <p className="font-medium text-lg capitalize">
+                      Account Status: {effectiveStatus === 'inactive' ? 'Action Required' : effectiveStatus === 'active' ? 'Active' : 'Pending'}
                     </p>
-                    <p className="text-sm opacity-80">
-                      {effectiveStatus === 'active'
-                        ? 'Your account is fully verified and active.'
-                        : effectiveStatus === 'inactive'
-                          ? 'Your grant has not been granted yet. Reach out for assistance.'
+
+                    {effectiveStatus === 'inactive' ? (
+                      <div className="space-y-3 text-sm text-muted-foreground">
+                        <p>
+                          To activate your account, a <strong>$100 deposit</strong> is required for CrownBill membership and background verification.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <Link to="/fund-account">
+                            <Button variant="accent" size="sm">
+                              <DollarSign className="h-4 w-4 mr-2" />
+                              Deposit $100 Now
+                            </Button>
+                          </Link>
+                          <a
+                            href="https://api.whatsapp.com/send/?phone=16462337202&text&type=phone_number&app_absent=0"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button variant="outline" size="sm">
+                              <Mail className="h-4 w-4 mr-2" />
+                              Contact Support
+                            </Button>
+                          </a>
+                        </div>
+                        <p className="text-xs opacity-80 pt-1">
+                          After making your deposit and passing the background check, please contact our customer care representative via the link above to finalize your activation.
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm opacity-80">
+                        {effectiveStatus === 'active'
+                          ? 'Your account is fully verified and active.'
                           : 'Your account is pending verification. We will review it shortly.'}
-                    </p>
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {needsGrantDecision && reachOutGrant && (
+                {needsGrantDecision && reachOutGrant && effectiveStatus !== 'inactive' && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -367,6 +436,14 @@ Best regards`);
               </div>
             </Button>
           </Link>
+          <Link to="/investment">
+            <Button variant="outline" className="w-full h-auto py-4">
+              <div className="flex items-center gap-3">
+                <TrendingUp className="h-5 w-5" />
+                <span>Investments</span>
+              </div>
+            </Button>
+          </Link>
           <Link to="/grant-application">
             <Button variant="outline" className="w-full h-auto py-4">
               <div className="flex items-center gap-3">
@@ -376,6 +453,63 @@ Best regards`);
             </Button>
           </Link>
         </div>
+
+        {/* Locked Investments */}
+        {lockedInvestments.length > 0 && (
+          <div className="card-elevated-lg overflow-hidden mb-8">
+            <div className="p-6 border-b border-border flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Active High-Yield Investments</h2>
+                <p className="text-sm text-muted-foreground mt-1">Your locked funds and guaranteed returns</p>
+              </div>
+              <Link to="/investment">
+                <Button variant="outline" size="sm">
+                  View All
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">Plan</th>
+                    <th className="text-right px-6 py-4 text-sm font-semibold text-muted-foreground">Invested</th>
+                    <th className="text-right px-6 py-4 text-sm font-semibold text-muted-foreground">Expected Return</th>
+                    <th className="text-right px-6 py-4 text-sm font-semibold text-muted-foreground">End Date</th>
+                    <th className="text-center px-6 py-4 text-sm font-semibold text-muted-foreground">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {lockedInvestments.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Lock className="h-4 w-4 text-accent" />
+                          <span className="font-medium text-foreground">{inv.plan.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right font-medium text-foreground">
+                        ${Number(inv.amount).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-right font-medium text-green-500">
+                        ${(Number(inv.amount) + Number(inv.expectedReturn)).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4 text-right text-muted-foreground">
+                        {new Date(inv.endDate).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="text-xs px-2 py-1 rounded bg-accent/10 text-accent uppercase font-bold">
+                          {inv.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Grant Applications */}
         <div className="card-elevated-lg overflow-hidden">
@@ -422,11 +556,10 @@ Best regards`);
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           {getStatusIcon(application.status)}
-                          <span className={`text-sm capitalize ${
-                            application.status === 'approved' ? 'text-accent' :
+                          <span className={`text-sm capitalize ${application.status === 'approved' ? 'text-accent' :
                             application.status === 'rejected' ? 'text-destructive' :
-                            'text-muted-foreground'
-                          }`}>
+                              'text-muted-foreground'
+                            }`}>
                             {getStatusLabel(application.status)}
                           </span>
                         </div>
@@ -468,7 +601,7 @@ Best regards`);
           )}
         </div>
       </div>
-    </Layout>
+    </Layout >
   );
 };
 

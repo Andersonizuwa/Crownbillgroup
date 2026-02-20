@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
-import { 
-  ArrowRight, 
+import {
+  ArrowRight,
   TrendingUp,
   TrendingDown,
   ArrowUpRight,
@@ -14,10 +14,16 @@ import {
   Wallet,
   PieChart,
   DollarSign,
-  RefreshCw
+  RefreshCw,
+  Lock,
+  Clock,
+  CheckCircle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 const Investment = () => {
   const { user } = useAuth();
@@ -73,14 +79,15 @@ const Investment = () => {
           const formattedHoldings = holdingsRes.data.map((h: any) => ({
             ...h,
             quantity: parseFloat(h.quantity),
+            averagePrice: parseFloat(h.averagePrice),
             currentPrice: parseFloat(h.currentPrice),
             currentValue: parseFloat(h.currentValue),
             profitLoss: parseFloat(h.profitLoss),
             profitLossPct: parseFloat(h.profitLossPct)
           }));
           setHoldings(formattedHoldings);
-          
-          const totalValue = formattedHoldings.reduce((sum: number, h: any) => 
+
+          const totalValue = formattedHoldings.reduce((sum: number, h: any) =>
             sum + h.currentValue, 0
           );
           setPortfolioValue(totalValue);
@@ -200,8 +207,8 @@ const Investment = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => window.location.reload()}
               className="flex items-center gap-2"
             >
@@ -254,8 +261,8 @@ const Investment = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center justify-center gap-2">
-                              <Button 
-                                variant="accent" 
+                              <Button
+                                variant="accent"
                                 size="sm"
                                 onClick={() => handleTrade(asset)}
                               >
@@ -296,8 +303,8 @@ const Investment = () => {
                             ${price > 0 ? price.toLocaleString("en-US", { minimumFractionDigits: 2 }) : '---'}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <Button 
-                              variant="accent" 
+                            <Button
+                              variant="accent"
                               size="sm"
                               onClick={() => navigate('/trade')}
                             >
@@ -337,8 +344,8 @@ const Investment = () => {
                             ${price > 0 ? price.toLocaleString("en-US", { minimumFractionDigits: 2 }) : '---'}
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <Button 
-                              variant="accent" 
+                            <Button
+                              variant="accent"
                               size="sm"
                               onClick={() => navigate('/crypto')}
                             >
@@ -394,9 +401,8 @@ const Investment = () => {
                               ${holding.currentValue?.toLocaleString("en-US", { minimumFractionDigits: 2 }) || '0.00'}
                             </td>
                             <td className="px-6 py-4 text-right">
-                              <div className={`flex items-center justify-end gap-1 ${
-                                holding.profitLoss >= 0 ? "text-accent" : "text-destructive"
-                              }`}>
+                              <div className={`flex items-center justify-end gap-1 ${holding.profitLoss >= 0 ? "text-accent" : "text-destructive"
+                                }`}>
                                 {holding.profitLoss >= 0 ? (
                                   <ArrowUpRight className="h-4 w-4" />
                                 ) : (

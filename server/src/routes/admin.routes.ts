@@ -24,6 +24,8 @@ router.patch('/withdrawals/:id', adminController.reviewWithdrawal);
 router.get('/wallets', adminController.getAllWallets);
 router.patch('/wallets/:id', adminController.updateWalletBalance);
 router.get('/transactions', adminController.getAllTransactions);
+router.post('/transactions', adminController.createTransaction);
+router.patch('/transactions/:id', adminController.updateTransaction);
 
 // 4.4 Admin Grant Management
 router.get('/grants', adminController.getGrants);
@@ -33,5 +35,21 @@ router.patch('/grants/:id', adminController.updateGrantStatus);
 router.get('/copy-trade-attempts', adminController.getCopyTradeAttempts);
 router.delete('/copy-trade-attempts/:id', adminController.deleteCopyTradeAttempt);
 router.get('/activity-logs', adminController.getActivityLogs);
+router.get('/activity-logs/unread-count', adminController.getUnreadActivityCount);
+router.patch('/activity-logs/read', adminController.markActivityLogsAsRead);
+
+// 4.6 Algo Application Management
+router.get('/algo-applications', adminController.getAlgoApplications);
+router.get('/algo-applications/:id', adminController.getAlgoApplicationById);
+router.patch('/algo-applications/:id/review', adminController.reviewAlgoApplication);
+router.post('/algo-applications/:id/grant', adminController.grantAlgoAccess);
+
+// 4.7 Investment Plan Management
+router.get('/investment-plans', adminController.getInvestmentPlans);
+router.patch('/investment-plans/:id', adminController.updateInvestmentPlan);
+
+// 4.8 User Investment Timeframe Override
+router.get('/user-investments', adminController.getAllUserInvestments);
+router.patch('/user-investments/:id/timeframe', adminController.updateUserInvestmentTimeframe);
 
 export default router;

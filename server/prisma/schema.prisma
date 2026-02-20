@@ -13,10 +13,12 @@ model activitylog {
   action    String
   details   Json?
   ipAddress String?
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
   user      user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "ActivityLog_userId_fkey")
 
   @@index([userId], map: "ActivityLog_userId_fkey")
+  @@index([isRead])
 }
 
 model copytradeattempt {
@@ -47,7 +49,7 @@ model deposit {
   reviewedBy      String?
   reviewedAt      DateTime?
   createdAt       DateTime  @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime  @updatedAt
   user            user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Deposit_userId_fkey")
 
   @@index([userId], map: "Deposit_userId_fkey")
@@ -69,7 +71,7 @@ model grantapplication {
   reviewedAt         DateTime?
   reviewedBy         String?
   createdAt          DateTime                @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime                @updatedAt
   user               user                    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "GrantApplication_userId_fkey")
 
   @@index([userId], map: "GrantApplication_userId_fkey")
@@ -89,7 +91,7 @@ model holding {
   profitLoss    Decimal           @db.Decimal(15, 2)
   profitLossPct Decimal           @db.Decimal(10, 2)
   createdAt     DateTime          @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime          @updatedAt
   user          user              @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Holding_userId_fkey")
 
   @@unique([userId, assetType, symbol], map: "Holding_userId_assetType_symbol_key")
@@ -116,7 +118,7 @@ model passwordresets {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
 }
 
 model profile {
@@ -140,7 +142,7 @@ model profile {
   businessIndustry   String?
   businessTaxId      String?
   createdAt          DateTime              @default(now())
-  updatedAt          DateTime
+  updatedAt          DateTime              @updatedAt
   user               user                  @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Profile_userId_fkey")
 }
 
@@ -188,7 +190,7 @@ model user {
   resetPasswordToken   String?            @unique(map: "User_resetPasswordToken_key")
   resetPasswordExpires DateTime?
   createdAt            DateTime           @default(now())
-  updatedAt            DateTime
+  updatedAt            DateTime           @updatedAt
   activitylog          activitylog[]
   copytradeattempt     copytradeattempt[]
   deposit              deposit[]
@@ -202,6 +204,9 @@ model user {
   wallet               wallet?
   withdrawal           withdrawal[]
   loginHistory         loginhistory[]
+  userInvestments      UserInvestment[]
+  algoApplication      ProprietaryAlgorithmApplication?
+  algoAccess           UserAlgorithmAccess[]
 }
 
 model userrole {
@@ -219,7 +224,7 @@ model wallet {
   balance   Decimal  @default(0.00) @db.Decimal(15, 2)
   currency  String   @default("USD")
   createdAt DateTime @default(now())
-  updatedAt DateTime
+  updatedAt DateTime @updatedAt
   user      user     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Wallet_userId_fkey")
 }
 
@@ -235,7 +240,7 @@ model withdrawal {
   reviewedBy       String?
   reviewedAt       DateTime?
   createdAt        DateTime  @default(now())
-  updatedAt        DateTime
+  updatedAt        DateTime  @updatedAt
   user             user      @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Withdrawal_userId_fkey")
 
   @@index([userId], map: "Withdrawal_userId_fkey")
@@ -327,4 +332,123 @@ enum profile_accountStatus {
   active
   inactive
   pending
+}
+
+model InvestmentPlan {
+  id               String           @id @default(uuid())
+  name             String
+  description      String           @db.Text
+  durationDays     Int
+  returnPercentage Decimal          @db.Decimal(5, 2)
+  minAmount        Decimal          @db.Decimal(15, 2)
+  maxAmount        Decimal          @db.Decimal(15, 2)
+  isActive         Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  userInvestments  UserInvestment[]
+  algoAccess       UserAlgorithmAccess[]
+}
+
+model UserInvestment {
+  id                  String            @id @default(uuid())
+  userId              String
+  planId              String
+  amount              Decimal           @db.Decimal(15, 2)
+  startDate           DateTime          @default(now())
+  endDate             DateTime
+  customDurationDays  Int?              // Admin-overridable duration
+  status              investment_status @default(ACTIVE)
+  expectedReturn      Decimal           @db.Decimal(15, 2)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  user                user              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                InvestmentPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([planId])
+}
+
+enum investment_status {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model ProprietaryAlgorithmApplication {
+  id                    String                        @id @default(uuid())
+  userId                String                        @unique
+  // Section 1 - Personal Profile
+  ageRange              String
+  occupation            String
+  occupationOther       String?
+  industry              String
+  // Section 2 - Income & Net Worth
+  annualIncome          String
+  netWorth              String
+  liquidCapital         String
+  // Section 3 - Investment Experience
+  investingDuration     String
+  assetsInvested        String                        // JSON array of selected options
+  investmentKnowledge   String
+  // Section 4 - Behavioural
+  checkFrequency        String
+  investorDescription   String
+  // Section 5 - Risk Tolerance
+  dropReaction          String
+  whatMattersMost       String
+  returnProfile         String
+  // Section 6 - Time Horizon
+  investmentHorizon     String
+  // Section 7 - Management Style
+  involvementLevel      String
+  communicationPref     String
+  // Section 8 - Allocation Psychology
+  allocationPercentage  String
+  // Section 9 - Expectations
+  primaryGoal           String
+  primaryConcern        String
+  // Section 10 - Crypto
+  holdsCrypto           String
+  cryptoNetWorthPct     String?
+  cryptoTypes           String?                       // JSON array
+  cryptoStorage         String?
+  cryptoExchanges       String?                       // if exchanges selected
+  cryptoActivity        String?
+  cryptoAllocation      String?
+  cryptoDropReaction    String?
+  // Admin
+  status                algo_application_status       @default(pending)
+  adminNotes            String?                       @db.Text
+  reviewedAt            DateTime?
+  reviewedBy            String?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  user                  user                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  algoAccess            UserAlgorithmAccess?
+
+  @@index([status])
+}
+
+model UserAlgorithmAccess {
+  id                 String                           @id @default(uuid())
+  userId             String
+  applicationId      String                           @unique
+  planId             String                           // The plan tier admin granted
+  customDurationDays Int?                             // Optional duration override for this user
+  grantedAt          DateTime                         @default(now())
+  grantedBy          String?
+  createdAt          DateTime                         @default(now())
+  updatedAt          DateTime                         @updatedAt
+  user               user                             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application        ProprietaryAlgorithmApplication  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  plan               InvestmentPlan                   @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+}
+
+enum algo_application_status {
+  pending
+  under_review
+  approved
+  rejected
 }

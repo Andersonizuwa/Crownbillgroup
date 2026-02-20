@@ -4,60 +4,61 @@ import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
+import { AuthRequest } from '../middleware/auth.middleware';
 import EmailService from '../lib/email';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
+const getClientIp = (req: Request) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0];
+  }
+  return req.ip;
+};
+
+const recordLoginAttempt = async (
+  userId: string,
+  req: Request,
+  success: boolean,
+  failureReason?: string
+) => {
+  try {
+    await prisma.loginhistory.create({
+      data: {
+        id: uuidv4(),
+        userId,
+        ipAddress: getClientIp(req),
+        userAgent: req.headers['user-agent'] || null,
+        success,
+        failureReason: failureReason || null
+      }
+    });
+  } catch (err) {
+    // Don't block login flow if logging fails
+    console.error('Error recording login history:', err);
+  }
+};
+
 export const register = async (req: Request, res: Response) => {
   try {
     console.log("Register Request Body:", req.body);
-    const { 
-      email, 
-      password, 
-      fullName, 
-      dateOfBirth,
-      phone,
-      maritalStatus,
-      nationality,
-      countryOfResidence,
-      taxId,
-      isPEP,
-      pepDetails,
-      hasBusiness,
-      businessName,
-      businessType,
-      businessIndustry,
-      businessTaxId,
-      idType
-    } = req.body;
-
-    // Validate date of birth is not from current year or in the future
-    if (dateOfBirth) {
-      const dob = new Date(dateOfBirth);
-      const today = new Date();
-      const currentYear = today.getFullYear();
-      
-      if (dob.getFullYear() > currentYear - 1) {
-        return res.status(400).json({ error: 'Date of birth cannot be from the current year or in the future' });
-      } else if (dob > today) {
-        return res.status(400).json({ error: 'Date of birth cannot be in the future' });
-      }
-    }
+    const { email, password, fullName, full_name } = req.body;
+    const name = fullName || full_name;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
-
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    const idDocumentFile = files?.['idDocument']?.[0];
-    const addressDocumentFile = files?.['addressDocument']?.[0];
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = password ? await bcrypt.hash(password, 10) : null;
 
     const user = await prisma.user.create({
       data: {
@@ -69,23 +70,9 @@ export const register = async (req: Request, res: Response) => {
           create: {
             id: uuidv4(),
             email,
-            fullName,
-            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-            phone,
-            maritalStatus,
-            nationality,
-            countryOfResidence,
-            taxId,
-            isPep: isPEP === 'yes' || isPEP === 'true' || isPEP === true,
-            pepDetails,
-            hasBusiness: hasBusiness === 'true' || hasBusiness === true,
-            businessName,
-            businessType,
-            businessIndustry,
-            businessTaxId,
+            fullName: name,
             kycStatus: 'pending',
-            accountStatus: 'pending',
-            updatedAt: new Date()
+            updatedAt: new Date(),
           }
         },
         wallet: {
@@ -100,49 +87,64 @@ export const register = async (req: Request, res: Response) => {
             id: uuidv4(),
             role: 'user'
           }
-        },
-        kycdocument: {
-          create: [
-            ...(idDocumentFile ? [{
-              id: uuidv4(),
-              documentType: (idType as any) || 'passport',
-              fileUrl: `/uploads/${idDocumentFile.filename}`,
-              status: 'pending' as any
-            }] : []),
-            ...(addressDocumentFile ? [{
-              id: uuidv4(),
-              documentType: 'utility_bill' as any,
-              fileUrl: `/uploads/${addressDocumentFile.filename}`,
-              status: 'pending' as any
-            }] : [])
-          ]
         }
       },
       include: { userrole: true, profile: true }
     });
 
+    // Record registration activity for admin notifications
+    try {
+      await prisma.activitylog.create({
+        data: {
+          id: uuidv4(),
+          userId: user.id,
+          action: 'user_registered',
+          details: {
+            email: user.email,
+            fullName: user.profile?.fullName || name || null
+          },
+          ipAddress: getClientIp(req)
+        }
+      });
+    } catch (logError) {
+      console.error('Error recording registration activity:', logError);
+    }
+
+    // Send admin notification
+    try {
+      await EmailService.sendAdminNotification(
+        'New User Registration',
+        `A new user has registered on CrownBillGroup: ${user.email}`,
+        {
+          userId: user.id,
+          email: user.email,
+          fullName: user.profile?.fullName || name || 'N/A',
+          timestamp: new Date().toISOString()
+        }
+      );
+    } catch (emailError) {
+      console.error('Error sending admin notification:', emailError);
+    }
+
     const token = jwt.sign(
       { userId: user.id, roles: user.userrole.map(r => r.role) },
       JWT_SECRET,
-      { expiresIn: '30m' } // Reduced from 24h to 30 minutes for better security
+      { expiresIn: '24h' }
     );
 
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 24 * 60 * 60 * 1000,
-      sameSite: 'strict' // Changed to strict for better security
+      sameSite: 'lax'
     });
 
-    // Send welcome email
-    await EmailService.sendWelcomeEmail(user.email, user.profile?.fullName || 'User');
-
-    res.status(201).json({ 
-      message: 'User registered successfully', 
+    res.status(201).json({
+      message: 'User registered successfully',
       token,
-      user: { 
-        id: user.id, 
-        email: user.email, 
+      user: {
+        id: user.id,
+        email: user.email,
         roles: user.userrole.map(r => r.role),
         fullName: user.profile?.fullName
       },
@@ -157,8 +159,6 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    const ipAddress = req.ip || 'unknown';
-    const userAgent = req.get('User-Agent') || 'unknown';
 
     const user = await prisma.user.findUnique({
       where: { email },
@@ -166,83 +166,45 @@ export const login = async (req: Request, res: Response) => {
     });
 
     if (!user || !user.passwordHash) {
-      console.warn(`Failed login attempt for email: ${email} - User not found`);
-      // Log failed login attempt
-      try {
-        await prisma.loginhistory.create({
-          data: {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            userId: user?.id || 'unknown',
-            ipAddress,
-            userAgent,
-            success: false,
-            failureReason: 'User not found'
-          }
-        });
-      } catch (error) {
-        console.error('Error logging failed login attempt:', error);
+      if (user) {
+        await recordLoginAttempt(user.id, req, false, 'Invalid credentials');
       }
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
-      console.warn(`Failed login attempt for email: ${email} - Incorrect password`);
-      // Log failed login attempt
-      try {
-        await prisma.loginhistory.create({
-          data: {
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-            userId: user.id,
-            ipAddress,
-            userAgent,
-            success: false,
-            failureReason: 'Incorrect password'
-          }
-        });
-      } catch (error) {
-        console.error('Error logging failed login attempt:', error);
-      }
+      await recordLoginAttempt(user.id, req, false, 'Invalid credentials');
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Log successful login
-    try {
-      await prisma.loginhistory.create({
-        data: {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          userId: user.id,
-          ipAddress,
-          userAgent,
-          success: true
-        }
-      });
-    } catch (error) {
-      console.error('Error logging successful login:', error);
-    }
+    const roles = (user as any).userrole.map((r: any) => r.role);
 
     const token = jwt.sign(
-  { userId: user.id, roles: user.userrole.map((r: any) => r.role) },
-  JWT_SECRET,
-  { expiresIn: '30m' } // Reduced from 24h to 30 minutes for better security
-);
+      { userId: user.id, roles },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
-    const isAdmin = user.userrole.some((r: any) => r.role === 'admin');
+    // Treat either explicit admin role or the primary admin email as admin
+    const isAdmin = roles.includes('admin') || user.email === 'admin@crownbill.com';
+
+    // Record successful login
+    await recordLoginAttempt(user.id, req, true);
 
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 24 * 60 * 60 * 1000,
-      sameSite: 'strict' // Changed to strict for better security
+      sameSite: 'lax'
     });
 
-    res.json({ 
-      message: 'Logged in successfully', 
-      token,
-      user: { 
-        id: user.id, 
-        email: user.email, 
-        roles: user.userrole.map((r: any) => r.role),
+    res.json({
+      message: 'Logged in successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        roles,
         fullName: user.profile?.fullName
       },
       isAdmin
@@ -252,34 +214,22 @@ export const login = async (req: Request, res: Response) => {
   }
 };
 
-export const verifyToken = async (req: Request, res: Response) => {
+export const getLoginHistory = async (req: AuthRequest, res: Response) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
-    if (!token) return res.status(401).json({ error: 'Token missing' });
-
-    const payload = jwt.verify(token, JWT_SECRET) as any;
-    const user = await prisma.user.findUnique({
-      where: { id: payload.userId },
-      include: { userrole: true, profile: true }
+    const history = await prisma.loginhistory.findMany({
+      where: { userId: req.user.userId },
+      orderBy: { timestamp: 'desc' },
+      take: 50
     });
 
-    if (!user) return res.status(401).json({ error: 'Invalid token' });
-
-    const isAdmin = user.userrole.some((r: any) => r.role === 'admin');
-
-    return res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        roles: user.userrole.map((r: any) => r.role),
-        fullName: user.profile?.fullName,
-      },
-      isAdmin
-    });
+    res.json(history);
   } catch (error: any) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    console.error('Error fetching login history:', error);
+    res.status(500).json({ error: 'Error fetching login history' });
   }
 };
 
@@ -297,10 +247,8 @@ export const magicLink = async (req: Request, res: Response) => {
       }
     });
 
-    const magicLink = `${process.env.FRONTEND_URL || 'https://yoursite.com'}/verify-magic-link?token=${token}`;
-
-    // In a real app, send email here - for now we'll just log
-    console.log(`Magic link for ${email}: ${magicLink}`);
+    // In a real app, send email here
+    console.log(`Magic link for ${email}: ${process.env.FRONTEND_URL}/verify-magic-link?token=${token}`);
 
     res.json({ message: 'Magic link sent to your email' });
   } catch (error: any) {
@@ -323,15 +271,12 @@ export const resetPasswordRequest = async (req: Request, res: Response) => {
         userId: user.id,
         email,
         token: token,
-        expiresAt: expires,
-        updatedAt: new Date()
+        expiresAt: expires
       }
     });
 
-    const resetLink = `${process.env.FRONTEND_URL || 'https://yoursite.com'}/reset-password?token=${token}`;
-
-    // Send password reset email
-    await EmailService.sendPasswordResetEmail(email, resetLink);
+    // In a real app, send email here
+    console.log(`Reset link for ${email}: ${process.env.FRONTEND_URL}/reset-password?token=${token}`);
 
     res.json({ message: 'Password reset link sent' });
   } catch (error: any) {
@@ -342,10 +287,6 @@ export const resetPasswordRequest = async (req: Request, res: Response) => {
 export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { token, newPassword } = req.body;
-
-    if (!newPassword || newPassword.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
-    }
 
     const resetRequest = await prisma.passwordresets.findFirst({
       where: {
@@ -369,171 +310,11 @@ export const resetPassword = async (req: Request, res: Response) => {
       prisma.passwordresets.update({
         where: { id: resetRequest.id },
         data: { used: true }
-      }),
-      prisma.passwordresets.updateMany({
-        where: { userId: resetRequest.userId, used: false, NOT: { id: resetRequest.id } },
-        data: { used: true }
       })
     ]);
 
     res.json({ message: 'Password reset successful' });
   } catch (error: any) {
     res.status(500).json({ error: 'Error resetting password' });
-  }
-};
-
-export const forgotPassword = async (req: Request, res: Response) => {
-  try {
-    const { email } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
-
-    // Return success regardless to prevent user enumeration
-    if (!user) {
-      return res.json({ message: 'If the email exists, a reset link has been sent' });
-    }
-
-    const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-    await prisma.passwordresets.create({
-      data: {
-        id: uuidv4(),
-        userId: user.id,
-        email,
-        token,
-        expiresAt: expires,
-        updatedAt: new Date()
-      }
-    });
-
-    const resetLink = `${process.env.FRONTEND_URL || 'https://yoursite.com'}/reset-password?token=${token}`;
-
-    // Send password reset email
-    await EmailService.sendPasswordResetEmail(email, resetLink);
-
-    return res.json({ message: 'If the email exists, a reset link has been sent' });
-  } catch (error: any) {
-    console.error('Forgot password error:', error);
-    return res.status(500).json({ error: 'Error processing forgot password request' });
-  }
-};
-
-interface AuthRequest extends Request {
-  user?: any;
-}
-
-export const changePassword = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user.userId;
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current password and new password are required' });
-    }
-
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'New password must be at least 8 characters long' });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId }
-    });
-
-    if (!user || !user.passwordHash) {
-      return res.status(401).json({ error: 'Invalid user' });
-    }
-
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
-    if (!isCurrentPasswordValid) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
-    }
-
-    const newPasswordHash = await bcrypt.hash(newPassword, 10);
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash: newPasswordHash }
-    });
-
-    res.json({ message: 'Password changed successfully' });
-  } catch (error: any) {
-    console.error('Change password error:', error);
-    res.status(500).json({ error: 'Error changing password' });
-  }
-};
-
-
-export const getLoginHistory = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user.userId;
-    
-    // Fetch actual login history from the database
-    const loginHistory = await prisma.loginhistory.findMany({
-      where: { userId },
-      orderBy: { timestamp: 'desc' },
-      take: 20 // Limit to last 20 login attempts
-    });
-    
-    // Transform the data to match the expected format
-    const transformedHistory = loginHistory.map(record => ({
-      id: record.id,
-      timestamp: record.timestamp,
-      ip: record.ipAddress,
-      userAgent: record.userAgent,
-      success: record.success,
-      failureReason: record.failureReason
-    }));
-    
-    res.json(transformedHistory);
-  } catch (error: any) {
-    console.error('Get login history error:', error);
-    res.status(500).json({ error: 'Error fetching login history' });
-  }
-};
-
-export const refreshToken = async (req: Request, res: Response) => {
-  try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
-
-    if (!token) return res.status(401).json({ error: 'Token missing' });
-
-    // Verify the current token
-    const payload = jwt.verify(token, JWT_SECRET) as any;
-    
-    // Create a new token with extended expiration
-    const newToken = jwt.sign(
-      { userId: payload.userId, roles: payload.roles },
-      JWT_SECRET,
-      { expiresIn: '30m' }
-    );
-
-    res.json({ 
-      message: 'Token refreshed successfully', 
-      token: newToken 
-    });
-  } catch (error: any) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
-};
-
-export const logout = async (req: AuthRequest, res: Response) => {
-  try {
-    const userId = req.user.userId;
-    
-    // Clear the token cookie
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
-    });
-    
-    // Optionally log the logout event
-    console.log(`User ${userId} logged out successfully`);
-    
-    res.json({ message: 'Logged out successfully' });
-  } catch (error: any) {
-    console.error('Logout error:', error);
-    res.status(500).json({ error: 'Error during logout' });
   }
 };

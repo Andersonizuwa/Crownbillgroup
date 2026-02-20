@@ -53,8 +53,12 @@ import {
   Mail,
   ArrowDownToLine,
   Search,
+
+  Bell,
+  ArrowRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useAdminNotifications } from "@/hooks/useAdminNotifications";
 
 interface UserProfile {
   id: string;
@@ -99,11 +103,11 @@ interface CopyTradeAttempt {
 }
 
 const AdminDashboard = () => {
-  const { user, isAdmin, signOut, isLoading } = useAuth();
+  const { user, isAdmin, logout, isLoading } = useAuth();
   const confirm = useConfirm();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [wallets, setWallets] = useState<UserWallet[]>([]);
   const [copyTradeAttempts, setCopyTradeAttempts] = useState<CopyTradeAttempt[]>([]);
@@ -116,6 +120,20 @@ const AdminDashboard = () => {
   const [newUserData, setNewUserData] = useState({ email: "", password: "" });
   const [walletAmount, setWalletAmount] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const {
+    unreadCount,
+    showNotificationModal,
+    setShowNotificationModal,
+    latestActivity,
+    markAllAsRead
+  } = useAdminNotifications(!!user && !!isAdmin);
+
+  useEffect(() => {
+    if (activeTab === "activity") {
+      markAllAsRead();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!isLoading && (!user || !isAdmin)) {
@@ -142,13 +160,13 @@ const AdminDashboard = () => {
           userId: u.id,
           roles: u.roles?.map((r: any) => r.role) || []
         };
-        
+
         // Debug logging for admin user
         if (u.email === 'admin@crownbill.com') {
           console.log('Admin user roles:', u.roles);
           console.log('Mapped roles:', mappedUser.roles);
         }
-        
+
         return mappedUser;
       }));
     } catch (error) {
@@ -221,7 +239,7 @@ Fidelity Team`);
 
     try {
       await api.delete(`/admin/copy-trade-attempts/${id}`);
-      
+
       toast({
         title: "Success",
         description: "Copy trade attempt deleted successfully",
@@ -343,7 +361,9 @@ Fidelity Team`);
   };
 
   const handleSignOut = async () => {
-    await signOut();
+    if (logout) {
+      await logout();
+    }
     navigate("/login");
   };
 
@@ -370,10 +390,26 @@ Fidelity Team`);
             </div>
             <span className="text-xl font-bold text-foreground">Admin Dashboard</span>
           </div>
-          <Button variant="ghost" onClick={handleSignOut}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative"
+              onClick={() => setActiveTab("activity")}
+              aria-label="View latest user activity and notifications"
+            >
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground animate-in zoom-in">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </Button>
+            <Button variant="ghost" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -412,6 +448,14 @@ Fidelity Team`);
             >
               <FileCheck className="h-4 w-4 mr-2" />
               Grant Applications
+            </Button>
+            <Button
+              variant={activeTab === "algo" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("algo")}
+            >
+              <LayoutDashboard className="h-4 w-4 mr-2" />
+              Algo &amp; Tiers
             </Button>
             <Button
               variant={activeTab === "activity" ? "secondary" : "ghost"}
@@ -555,8 +599,8 @@ Fidelity Team`);
                                 {userProfile.kycStatus === 'approved'
                                   ? <Badge variant="default">Approved</Badge>
                                   : userProfile.kycStatus === 'rejected'
-                                  ? <Badge variant="destructive">Rejected</Badge>
-                                  : <Badge variant="secondary">{userProfile.kycStatus}</Badge>
+                                    ? <Badge variant="destructive">Rejected</Badge>
+                                    : <Badge variant="secondary">{userProfile.kycStatus}</Badge>
                                 }
                               </TableCell>
                               <TableCell>
@@ -628,6 +672,10 @@ Fidelity Team`);
 
           {activeTab === "grants" && (
             <GrantApplicationsTab users={users} />
+          )}
+
+          {activeTab === "algo" && (
+            <AlgoManagementTab users={users} />
           )}
 
           {activeTab === "deposits" && (
@@ -882,13 +930,693 @@ Fidelity Team`);
 };
 
 // Helper Components
-const WalletsTab = ({ 
-  wallets, 
-  users, 
-  onRefresh 
-}: { 
-  wallets: UserWallet[]; 
-  users: UserProfile[]; 
+
+// ─── Algo Management (Applications, Tiers, Timeframes) ─────────────────────────
+
+interface AlgoApplicationAdmin {
+  id: string;
+  userId: string;
+  status: string;
+  annualIncome: string;
+  netWorth: string;
+  allocationPercentage: string;
+  investmentHorizon: string;
+  holdsCrypto: string;
+  createdAt: string;
+  user?: {
+    profile?: {
+      fullName: string | null;
+      email: string;
+    } | null;
+  } | null;
+  algoAccess?: {
+    id: string;
+    customDurationDays: number | null;
+    plan: {
+      id: string;
+      name: string;
+      durationDays: number;
+      returnPercentage: number;
+    };
+  } | null;
+}
+
+interface InvestmentPlanAdmin {
+  id: string;
+  name: string;
+  description: string;
+  durationDays: number;
+  returnPercentage: number;
+  minAmount: number;
+  maxAmount: number;
+  isActive: boolean;
+}
+
+interface UserInvestmentAdmin {
+  id: string;
+  userId: string;
+  amount: number;
+  startDate: string;
+  endDate: string;
+  customDurationDays: number | null;
+  status: string;
+  plan: {
+    id: string;
+    name: string;
+    durationDays: number;
+    returnPercentage: number;
+  };
+  user?: {
+    profile?: {
+      fullName: string | null;
+      email: string;
+    } | null;
+  } | null;
+}
+
+const AlgoManagementTab = ({ users }: { users: UserProfile[] }) => {
+  const { toast } = useToast();
+  const [plans, setPlans] = useState<InvestmentPlanAdmin[]>([]);
+  const [applications, setApplications] = useState<AlgoApplicationAdmin[]>([]);
+  const [investments, setInvestments] = useState<UserInvestmentAdmin[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [editingPlan, setEditingPlan] = useState<InvestmentPlanAdmin | null>(null);
+  const [editPlanForm, setEditPlanForm] = useState({
+    returnPercentage: "",
+    durationDays: "",
+  });
+
+  const [selectedApplication, setSelectedApplication] = useState<AlgoApplicationAdmin | null>(null);
+  const [isGrantOpen, setIsGrantOpen] = useState(false);
+  const [grantForm, setGrantForm] = useState({
+    planId: "",
+    customDurationDays: "",
+  });
+
+  const [selectedInvestment, setSelectedInvestment] = useState<UserInvestmentAdmin | null>(null);
+  const [isTimeframeOpen, setIsTimeframeOpen] = useState(false);
+  const [timeframeDays, setTimeframeDays] = useState("");
+
+  const getUserEmail = (userId: string) => {
+    const user = users.find(u => u.userId === userId);
+    return user?.email || 'Unknown';
+  };
+
+  const getUserName = (userId: string) => {
+    const user = users.find(u => u.userId === userId);
+    return user?.fullName || 'Unknown';
+  };
+
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [plansRes, appsRes, invRes] = await Promise.all([
+        api.get('/admin/investment-plans'),
+        api.get('/admin/algo-applications'),
+        api.get('/admin/user-investments'),
+      ]);
+      setPlans(plansRes.data || []);
+      setApplications(appsRes.data || []);
+      setInvestments(invRes.data || []);
+    } catch (error) {
+      console.error('Error fetching algo management data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load algo management data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const openEditPlan = (plan: InvestmentPlanAdmin) => {
+    setEditingPlan(plan);
+    setEditPlanForm({
+      returnPercentage: plan.returnPercentage.toString(),
+      durationDays: plan.durationDays.toString(),
+    });
+  };
+
+  const savePlan = async () => {
+    if (!editingPlan) return;
+    const rp = parseFloat(editPlanForm.returnPercentage);
+    const dd = parseInt(editPlanForm.durationDays, 10);
+    if (isNaN(rp) || isNaN(dd) || rp <= 0 || dd <= 0) {
+      toast({
+        title: "Validation error",
+        description: "Return % and duration must be positive numbers",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await api.patch(`/admin/investment-plans/${editingPlan.id}`, {
+        returnPercentage: rp,
+        durationDays: dd,
+      });
+      toast({
+        title: "Updated",
+        description: "Investment plan updated successfully",
+      });
+      setEditingPlan(null);
+      await fetchAll();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to update plan",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateApplicationStatus = async (applicationId: string, status: string) => {
+    try {
+      await api.patch(`/admin/algo-applications/${applicationId}/review`, {
+        status,
+      });
+      toast({
+        title: "Updated",
+        description: `Application marked as ${status}`,
+      });
+      await fetchAll();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to update application",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openGrant = (app: AlgoApplicationAdmin) => {
+    setSelectedApplication(app);
+    setGrantForm({
+      planId: app.algoAccess?.plan.id || "",
+      customDurationDays: app.algoAccess?.customDurationDays?.toString() || "",
+    });
+    setIsGrantOpen(true);
+  };
+
+  const grantAccess = async () => {
+    if (!selectedApplication) return;
+    if (!grantForm.planId) {
+      toast({
+        title: "Validation error",
+        description: "Please select a plan (tier) to grant",
+        variant: "destructive",
+      });
+      return;
+    }
+    const customDays = grantForm.customDurationDays
+      ? parseInt(grantForm.customDurationDays, 10)
+      : undefined;
+    if (customDays !== undefined && (isNaN(customDays) || customDays <= 0)) {
+      toast({
+        title: "Validation error",
+        description: "Custom duration must be a positive number of days",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await api.post(`/admin/algo-applications/${selectedApplication.id}/grant`, {
+        planId: grantForm.planId,
+        customDurationDays: customDays,
+      });
+      toast({
+        title: "Access granted",
+        description: "User has been assigned to the selected investment tier",
+      });
+      setIsGrantOpen(false);
+      await fetchAll();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to grant access",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openTimeframe = (inv: UserInvestmentAdmin) => {
+    setSelectedInvestment(inv);
+    setTimeframeDays(inv.customDurationDays?.toString() || "");
+    setIsTimeframeOpen(true);
+  };
+
+  const saveTimeframe = async () => {
+    if (!selectedInvestment) return;
+    const days = parseInt(timeframeDays, 10);
+    if (isNaN(days) || days <= 0) {
+      toast({
+        title: "Validation error",
+        description: "Custom duration must be a positive number of days",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      await api.patch(`/admin/user-investments/${selectedInvestment.id}/timeframe`, {
+        customDurationDays: days,
+      });
+      toast({
+        title: "Updated",
+        description: "Investment timeframe updated for this user",
+      });
+      setIsTimeframeOpen(false);
+      await fetchAll();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to update timeframe",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stats = {
+    totalApps: applications.length,
+    pending: applications.filter(a => a.status === 'pending').length,
+    underReview: applications.filter(a => a.status === 'under_review').length,
+    approved: applications.filter(a => a.status === 'approved').length,
+    rejected: applications.filter(a => a.status === 'rejected').length,
+  };
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-2xl font-bold text-foreground">Proprietary Algorithm &amp; Tiers</h2>
+        <p className="text-muted-foreground">
+          Review investor profiles, assign proprietary tiers, and override terms per user.
+        </p>
+      </div>
+
+      {loading && (
+        <p className="text-sm text-muted-foreground">Loading algo data...</p>
+      )}
+
+      {/* Investment Plan Tiers */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold">Investment Plans (Tiers)</h3>
+            <p className="text-xs text-muted-foreground">
+              Edit base yield percentages and default durations used across the platform.
+            </p>
+          </div>
+        </div>
+        <div className="card-elevated">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Return %</TableHead>
+                <TableHead>Duration (days)</TableHead>
+                <TableHead>Min</TableHead>
+                <TableHead>Max</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {plans.map(plan => (
+                <TableRow key={plan.id}>
+                  <TableCell className="font-medium">{plan.name}</TableCell>
+                  <TableCell>{plan.returnPercentage}%</TableCell>
+                  <TableCell>{plan.durationDays}</TableCell>
+                  <TableCell>${Number(plan.minAmount).toLocaleString()}</TableCell>
+                  <TableCell>
+                    {Number(plan.maxAmount) >= 1000000 ? 'No limit' : `$${Number(plan.maxAmount).toLocaleString()}`}
+                  </TableCell>
+                  <TableCell>
+                    {plan.isActive ? (
+                      <Badge variant="default">Active</Badge>
+                    ) : (
+                      <Badge variant="secondary">Inactive</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="sm" onClick={() => openEditPlan(plan)}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Yield/Term
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      {/* Algo Applications */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold">Investor Profiles &amp; Tier Access</h3>
+            <p className="text-xs text-muted-foreground">
+              Review submitted profiles and assign which proprietary tier each investor can see.
+            </p>
+          </div>
+          <div className="flex gap-3 text-xs text-muted-foreground">
+            <span>Pending: {stats.pending}</span>
+            <span>Under review: {stats.underReview}</span>
+            <span>Approved: {stats.approved}</span>
+          </div>
+        </div>
+        <div className="card-elevated overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Investor</TableHead>
+                <TableHead>Income / Net Worth</TableHead>
+                <TableHead>Horizon</TableHead>
+                <TableHead>Allocation %</TableHead>
+                <TableHead>Crypto</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Assigned Tier</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {applications.map(app => (
+                <TableRow key={app.id}>
+                  <TableCell>{new Date(app.createdAt).toLocaleString()}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {app.user?.profile?.fullName || getUserName(app.userId)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {app.user?.profile?.email || getUserEmail(app.userId)}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-xs">
+                      <div>Income: {app.annualIncome}</div>
+                      <div>Net worth: {app.netWorth}</div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs">{app.investmentHorizon}</TableCell>
+                  <TableCell className="text-xs">{app.allocationPercentage}</TableCell>
+                  <TableCell className="text-xs">{app.holdsCrypto}</TableCell>
+                  <TableCell>
+                    {app.status === 'approved' && (
+                      <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
+                        Approved
+                      </Badge>
+                    )}
+                    {app.status === 'pending' && (
+                      <Badge variant="secondary">Pending</Badge>
+                    )}
+                    {app.status === 'under_review' && (
+                      <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20">
+                        Under Review
+                      </Badge>
+                    )}
+                    {app.status === 'rejected' && (
+                      <Badge variant="destructive">Rejected</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {app.algoAccess ? (
+                      <div className="text-xs">
+                        <div className="font-medium">{app.algoAccess.plan.name}</div>
+                        <div className="text-muted-foreground">
+                          {app.algoAccess.plan.returnPercentage}% ·{" "}
+                          {app.algoAccess.customDurationDays ??
+                            app.algoAccess.plan.durationDays}{" "}
+                          days
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Not assigned</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      {app.status !== 'approved' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => updateApplicationStatus(app.id, 'under_review')}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Mark Under Review
+                        </Button>
+                      )}
+                      {app.status !== 'approved' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => updateApplicationStatus(app.id, 'approved')}
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Approve
+                        </Button>
+                      )}
+                      {app.status !== 'rejected' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => updateApplicationStatus(app.id, 'rejected')}
+                        >
+                          <XCircle className="h-3 w-3 mr-1 text-destructive" />
+                          Reject
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openGrant(app)}
+                      >
+                        <Settings className="h-3 w-3 mr-1" />
+                        Assign Tier
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      {/* User Investments & Timeframe Overrides */}
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-lg font-semibold">User Investments &amp; Timeframes</h3>
+          <p className="text-xs text-muted-foreground">
+            Adjust the lock period for specific users when needed. This overrides the plan default.
+          </p>
+        </div>
+        <div className="card-elevated overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>Investor</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Base Term</TableHead>
+                <TableHead>Custom Term</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {investments.map(inv => (
+                <TableRow key={inv.id}>
+                  <TableCell>{new Date(inv.startDate).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {inv.user?.profile?.fullName || getUserName(inv.userId)}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {inv.user?.profile?.email || getUserEmail(inv.userId)}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-xs">
+                      <div className="font-medium">{inv.plan.name}</div>
+                      <div className="text-muted-foreground">
+                        {inv.plan.returnPercentage}% yield
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>${Number(inv.amount).toLocaleString()}</TableCell>
+                  <TableCell>{inv.plan.durationDays} days</TableCell>
+                  <TableCell>
+                    {inv.customDurationDays
+                      ? `${inv.customDurationDays} days`
+                      : <span className="text-xs text-muted-foreground">Using base term</span>}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={inv.status === 'ACTIVE' ? 'default' : 'secondary'}>
+                      {inv.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openTimeframe(inv)}
+                    >
+                      <Clock className="h-4 w-4 mr-1" />
+                      Override Term
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      {/* Edit Plan Dialog */}
+      <Dialog open={!!editingPlan} onOpenChange={(open) => !open && setEditingPlan(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Edit Plan Yield &amp; Duration
+            </DialogTitle>
+            <DialogDescription>
+              Update the base return percentage and default duration for this tier.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Return Percentage (%)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={editPlanForm.returnPercentage}
+                onChange={(e) =>
+                  setEditPlanForm((f) => ({ ...f, returnPercentage: e.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Duration (days)</Label>
+              <Input
+                type="number"
+                value={editPlanForm.durationDays}
+                onChange={(e) =>
+                  setEditPlanForm((f) => ({ ...f, durationDays: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingPlan(null)}>
+              Cancel
+            </Button>
+            <Button variant="accent" onClick={savePlan}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Grant Access Dialog */}
+      <Dialog open={isGrantOpen} onOpenChange={setIsGrantOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Proprietary Tier</DialogTitle>
+            <DialogDescription>
+              Select which investment plan this investor should see and optionally override the term.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Tier / Plan</Label>
+              <Select
+                value={grantForm.planId}
+                onValueChange={(value) => setGrantForm((f) => ({ ...f, planId: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {plans.map((plan) => (
+                    <SelectItem key={plan.id} value={plan.id}>
+                      {plan.name} — {plan.returnPercentage}% / {plan.durationDays} days
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Custom Duration (days, optional)</Label>
+              <Input
+                type="number"
+                placeholder="Leave empty to use plan default"
+                value={grantForm.customDurationDays}
+                onChange={(e) =>
+                  setGrantForm((f) => ({ ...f, customDurationDays: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsGrantOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="accent" onClick={grantAccess}>
+              Save Tier Access
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Timeframe Override Dialog */}
+      <Dialog open={isTimeframeOpen} onOpenChange={setIsTimeframeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Override Investment Term</DialogTitle>
+            <DialogDescription>
+              Set a custom number of days for this specific user’s investment. This will update the maturity date.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Custom Duration (days)</Label>
+              <Input
+                type="number"
+                value={timeframeDays}
+                onChange={(e) => setTimeframeDays(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTimeframeOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="accent" onClick={saveTimeframe}>
+              Update Term
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+const WalletsTab = ({
+  wallets,
+  users,
+  onRefresh
+}: {
+  wallets: UserWallet[];
+  users: UserProfile[];
   onRefresh: () => void;
 }) => {
   const { toast } = useToast();
@@ -951,28 +1679,28 @@ const WalletsTab = ({
                 return !user?.roles?.includes('admin') && user?.email !== 'admin@crownbill.com';
               })
               .map((wallet) => (
-              <TableRow key={wallet.id}>
-                <TableCell className="font-medium">{getUserEmail(wallet.userId)}</TableCell>
-                <TableCell className="text-accent font-semibold">
-                  ${wallet.balance?.toFixed(2) || '0.00'}
-                </TableCell>
-                <TableCell>{wallet.currency}</TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedWallet(wallet);
-                      setWalletAmount(wallet.balance.toString());
-                      setIsEditOpen(true);
-                    }}
-                  >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit Balance
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+                <TableRow key={wallet.id}>
+                  <TableCell className="font-medium">{getUserEmail(wallet.userId)}</TableCell>
+                  <TableCell className="text-accent font-semibold">
+                    ${wallet.balance?.toFixed(2) || '0.00'}
+                  </TableCell>
+                  <TableCell>{wallet.currency}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedWallet(wallet);
+                        setWalletAmount(wallet.balance.toString());
+                        setIsEditOpen(true);
+                      }}
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Balance
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </div>
@@ -1014,11 +1742,29 @@ const WalletsTab = ({
 
 // Transactions Tab Component
 const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
+  const { toast } = useToast();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUserId, setSelectedUserId] = useState<string>("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    amount: "",
+    status: "",
+    description: "",
+    createdAt: ""
+  });
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    userId: "",
+    type: "deposit",
+    amount: "",
+    status: "completed",
+    description: "",
+    createdAt: new Date().toISOString().slice(0, 16)
+  });
 
   const getUserEmail = (userId: string) => {
     const user = users.find(u => u.userId === userId);
@@ -1057,11 +1803,90 @@ const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
     fetchTransactions();
   }, [selectedUserId, startDate, endDate]);
 
+  const handleEditClick = (tx: any) => {
+    setSelectedTransaction(tx);
+    setEditForm({
+      amount: tx.amount.toString(),
+      status: tx.status,
+      description: tx.description || "",
+      createdAt: new Date(tx.createdAt).toISOString().slice(0, 16) // Format for datetime-local input
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedTransaction) return;
+
+    try {
+      await api.patch(`/admin/transactions/${selectedTransaction.id}`, {
+        amount: parseFloat(editForm.amount),
+        status: editForm.status,
+        description: editForm.description,
+        createdAt: new Date(editForm.createdAt).toISOString()
+      });
+
+      toast({
+        title: "Success",
+        description: "Transaction updated successfully",
+      });
+
+      setIsEditOpen(false);
+      fetchTransactions();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to update transaction",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCreate = async () => {
+    try {
+      await api.post('/admin/transactions', {
+        userId: createForm.userId,
+        type: createForm.type,
+        amount: parseFloat(createForm.amount),
+        status: createForm.status,
+        description: createForm.description,
+        createdAt: new Date(createForm.createdAt).toISOString()
+      });
+
+      toast({
+        title: "Success",
+        description: "Transaction created successfully",
+      });
+
+      setIsCreateOpen(false);
+      setCreateForm({
+        userId: "",
+        type: "deposit",
+        amount: "",
+        status: "completed",
+        description: "",
+        createdAt: new Date().toISOString().slice(0, 16)
+      });
+      fetchTransactions();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.error || "Failed to create transaction",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Transaction History</h2>
-        <p className="text-muted-foreground">View and filter all transactions</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Transaction History</h2>
+          <p className="text-muted-foreground">View and manage all transactions</p>
+        </div>
+        <Button variant="accent" onClick={() => setIsCreateOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Create Transaction
+        </Button>
       </div>
 
       {/* Filters */}
@@ -1118,6 +1943,7 @@ const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
                 <TableHead>Amount</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1136,12 +1962,17 @@ const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
                         tx.status === 'completed'
                           ? 'default'
                           : tx.status === 'failed'
-                          ? 'destructive'
-                          : 'secondary'
+                            ? 'destructive'
+                            : 'secondary'
                       }
                     >
                       {tx.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="sm" onClick={() => handleEditClick(tx)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -1156,7 +1987,182 @@ const TransactionsTab = ({ users }: { users: UserProfile[] }) => {
           </Table>
         )}
       </div>
-    </div>
+
+
+      {/* Edit Transaction Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Transaction</DialogTitle>
+            <DialogDescription>
+              Update transaction details for {selectedTransaction && getUserEmail(selectedTransaction.userId)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="tx-amount">Amount</Label>
+                <Input
+                  id="tx-amount"
+                  type="number"
+                  step="0.01"
+                  value={editForm.amount}
+                  onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tx-date">Date</Label>
+                <Input
+                  id="tx-date"
+                  type="datetime-local"
+                  value={editForm.createdAt}
+                  onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tx-status">Status</Label>
+              <Select
+                value={editForm.status}
+                onValueChange={(value) => setEditForm({ ...editForm, status: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tx-desc">Description</Label>
+              <Textarea
+                id="tx-desc"
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="accent" onClick={handleUpdate}>
+              Update Transaction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
+      {/* Create Transaction Dialog */}
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Transaction</DialogTitle>
+            <DialogDescription>
+              Create a new transaction for a user.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="create-user">User</Label>
+              <Select
+                value={createForm.userId}
+                onValueChange={(value) => setCreateForm({ ...createForm, userId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.userId} value={user.userId}>
+                      {user.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-amount">Amount</Label>
+                <Input
+                  id="create-amount"
+                  type="number"
+                  step="0.01"
+                  value={createForm.amount}
+                  onChange={(e) => setCreateForm({ ...createForm, amount: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-date">Date</Label>
+                <Input
+                  id="create-date"
+                  type="datetime-local"
+                  value={createForm.createdAt}
+                  onChange={(e) => setCreateForm({ ...createForm, createdAt: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-type">Type</Label>
+                <Select
+                  value={createForm.type}
+                  onValueChange={(value) => setCreateForm({ ...createForm, type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="deposit">Deposit</SelectItem>
+                    <SelectItem value="withdrawal">Withdrawal</SelectItem>
+                    <SelectItem value="trade_buy">Trade Buy</SelectItem>
+                    <SelectItem value="trade_sell">Trade Sell</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="create-status">Status</Label>
+                <Select
+                  value={createForm.status}
+                  onValueChange={(value) => setCreateForm({ ...createForm, status: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="failed">Failed</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="create-desc">Description</Label>
+              <Textarea
+                id="create-desc"
+                value={createForm.description}
+                onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="accent" onClick={handleCreate}>
+              Create Transaction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div >
   );
 };
 
@@ -1287,27 +2293,27 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
 
   useEffect(() => {
     let filtered = [...allApplications];
-    
+
     if (statusFilter !== "all") {
       filtered = filtered.filter(app => app.status === statusFilter);
     }
-    
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(app => 
+      filtered = filtered.filter(app =>
         app.organizationName.toLowerCase().includes(query) ||
         app.contactName.toLowerCase().includes(query) ||
         app.contactEmail.toLowerCase().includes(query) ||
         getUserEmail(app.userId).toLowerCase().includes(query)
       );
     }
-    
+
     setApplications(filtered);
   }, [statusFilter, searchQuery, allApplications]);
 
   const updateApplicationStatus = async (applicationId: string, newStatus: string) => {
     try {
-      await api.patch(`/admin/grants/${applicationId}`, { 
+      await api.patch(`/admin/grants/${applicationId}`, {
         status: newStatus,
         adminNotes: adminNotes || null,
       });
@@ -1358,7 +2364,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
     <div className="space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div 
+        <div
           className={`card-elevated p-4 cursor-pointer transition-all ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'pending' ? 'all' : 'pending')}
         >
@@ -1372,7 +2378,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
             </div>
           </div>
         </div>
-        <div 
+        <div
           className={`card-elevated p-4 cursor-pointer transition-all ${statusFilter === 'under_review' ? 'ring-2 ring-primary' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'under_review' ? 'all' : 'under_review')}
         >
@@ -1386,7 +2392,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
             </div>
           </div>
         </div>
-        <div 
+        <div
           className={`card-elevated p-4 cursor-pointer transition-all ${statusFilter === 'approved' ? 'ring-2 ring-primary' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
         >
@@ -1400,7 +2406,7 @@ const GrantApplicationsTab = ({ users }: { users: UserProfile[] }) => {
             </div>
           </div>
         </div>
-        <div 
+        <div
           className={`card-elevated p-4 cursor-pointer transition-all ${statusFilter === 'rejected' ? 'ring-2 ring-primary' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'rejected' ? 'all' : 'rejected')}
         >
@@ -1702,7 +2708,7 @@ const ActivityLogsTab = ({ users }: { users: UserProfile[] }) => {
 
   const formatDetails = (details: any) => {
     if (!details) return '-';
-    
+
     try {
       // If it's already an object, format it nicely
       if (typeof details === 'object') {
@@ -1720,13 +2726,13 @@ const ActivityLogsTab = ({ users }: { users: UserProfile[] }) => {
         }
         return JSON.stringify(details, null, 2);
       }
-      
+
       // If it's a string, try to parse it as JSON
       if (typeof details === 'string') {
         const parsed = JSON.parse(details);
         return formatDetails(parsed);
       }
-      
+
       return String(details);
     } catch (e) {
       return String(details);
@@ -1843,7 +2849,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
   const updateDeposit = async (depositId: string, userId: string, amount: number, newStatus: 'approved' | 'rejected') => {
     try {
       await api.patch(`/admin/deposits/${depositId}`, { status: newStatus });
-      
+
       toast({ title: "Success", description: `Deposit ${newStatus}` });
       fetchDeposits();
       onWalletUpdate();
@@ -1854,11 +2860,11 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
 
   const assignSettlementDetails = async () => {
     if (!selectedDeposit) return;
-    
+
     try {
       // Generate reference code if not provided
       const refCode = settlementDetails.referenceCode || `REF-${Math.floor(100000 + Math.random() * 900000)}`;
-      
+
       await api.patch(`/admin/deposits/${selectedDeposit.id}`, {
         status: 'awaiting_payment',
         settlementDetails: {
@@ -1868,12 +2874,12 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
           referenceCode: refCode
         }
       });
-      
+
       toast({
         title: "Success",
         description: "Settlement details assigned successfully"
       });
-      
+
       setIsAssignModalOpen(false);
       setSettlementDetails({
         bankName: "",
@@ -1931,7 +2937,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
           </SelectContent>
         </Select>
       </div>
-      
+
       <div className="card-elevated">
         {loading ? (
           <div className="p-8 text-center">Loading...</div>
@@ -1958,11 +2964,11 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                     </div>
                   </TableCell>
                   <TableCell className="capitalize">
-                    {d.paymentMethod === 'zelle' ? 'Zelle' : 
-                     d.paymentMethod === 'square' ? 'Square' : 
-                     d.paymentMethod === 'paypal' ? 'PayPal' : 
-                     d.paymentMethod === 'crypto' ? `${d.cryptoType?.toUpperCase() || 'Crypto'}` : 
-                     d.paymentMethod}
+                    {d.paymentMethod === 'zelle' ? 'Zelle' :
+                      d.paymentMethod === 'square' ? 'Square' :
+                        d.paymentMethod === 'paypal' ? 'PayPal' :
+                          d.paymentMethod === 'crypto' ? `${d.cryptoType?.toUpperCase() || 'Crypto'}` :
+                            d.paymentMethod}
                   </TableCell>
                   <TableCell className="font-semibold">${d.amount.toLocaleString()}</TableCell>
                   <TableCell>{getStatusBadge(d.status)}</TableCell>
@@ -1978,7 +2984,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                       >
                         <Eye className="h-4 w-4 mr-1" />View
                       </Button>
-                      
+
                       {d.status === 'pending_matching' && (
                         <Button
                           size="sm"
@@ -1991,7 +2997,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                           <DollarSign className="h-4 w-4 mr-1" />Assign Details
                         </Button>
                       )}
-                      
+
                       {d.status === 'awaiting_confirmation' && (
                         <div className="flex gap-2">
                           <div className="relative group">
@@ -2019,7 +3025,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                           </Button>
                         </div>
                       )}
-                      
+
                       {(d.status === 'pending' || d.status === 'awaiting_payment') && (
                         <div className="flex gap-2">
                           <Button
@@ -2064,13 +3070,13 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
             </DialogDescription>
             {selectedDeposit && (
               <div className="mt-2 p-3 bg-muted rounded-lg">
-                <div className="text-sm font-medium">Payment Method: 
+                <div className="text-sm font-medium">Payment Method:
                   <span className="capitalize ml-1">
-                    {selectedDeposit.paymentMethod === 'zelle' ? 'Zelle' : 
-                     selectedDeposit.paymentMethod === 'square' ? 'Square' : 
-                     selectedDeposit.paymentMethod === 'paypal' ? 'PayPal' : 
-                     selectedDeposit.paymentMethod === 'crypto' ? `${selectedDeposit.cryptoType?.toUpperCase() || 'Crypto'}` : 
-                     selectedDeposit.paymentMethod}
+                    {selectedDeposit.paymentMethod === 'zelle' ? 'Zelle' :
+                      selectedDeposit.paymentMethod === 'square' ? 'Square' :
+                        selectedDeposit.paymentMethod === 'paypal' ? 'PayPal' :
+                          selectedDeposit.paymentMethod === 'crypto' ? `${selectedDeposit.cryptoType?.toUpperCase() || 'Crypto'}` :
+                            selectedDeposit.paymentMethod}
                   </span>
                 </div>
                 <div className="text-sm">Amount: <span className="font-semibold">${selectedDeposit.amount.toLocaleString()}</span></div>
@@ -2083,7 +3089,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
               <Input
                 id="bankName"
                 value={settlementDetails.bankName}
-                onChange={(e) => setSettlementDetails({...settlementDetails, bankName: e.target.value})}
+                onChange={(e) => setSettlementDetails({ ...settlementDetails, bankName: e.target.value })}
                 placeholder="e.g., Chase Bank"
               />
             </div>
@@ -2092,7 +3098,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
               <Input
                 id="accountNumber"
                 value={settlementDetails.accountNumber}
-                onChange={(e) => setSettlementDetails({...settlementDetails, accountNumber: e.target.value})}
+                onChange={(e) => setSettlementDetails({ ...settlementDetails, accountNumber: e.target.value })}
                 placeholder="Account number"
               />
             </div>
@@ -2101,7 +3107,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
               <Input
                 id="accountHolder"
                 value={settlementDetails.accountHolderName}
-                onChange={(e) => setSettlementDetails({...settlementDetails, accountHolderName: e.target.value})}
+                onChange={(e) => setSettlementDetails({ ...settlementDetails, accountHolderName: e.target.value })}
                 placeholder="Account holder name"
               />
             </div>
@@ -2110,7 +3116,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
               <Input
                 id="referenceCode"
                 value={settlementDetails.referenceCode}
-                onChange={(e) => setSettlementDetails({...settlementDetails, referenceCode: e.target.value})}
+                onChange={(e) => setSettlementDetails({ ...settlementDetails, referenceCode: e.target.value })}
                 placeholder="Will auto-generate if empty"
               />
             </div>
@@ -2150,12 +3156,12 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                 <div>
                   <Label className="text-muted-foreground text-xs">Payment Method</Label>
                   <p className="font-medium capitalize">
-                    {selectedDeposit.paymentMethod === 'bank' ? 'Bank Transfer' : 
-                     selectedDeposit.paymentMethod === 'zelle' ? 'Zelle' : 
-                     selectedDeposit.paymentMethod === 'square' ? 'Square' : 
-                     selectedDeposit.paymentMethod === 'paypal' ? 'PayPal' : 
-                     selectedDeposit.paymentMethod === 'crypto' ? `${selectedDeposit.cryptoType?.toUpperCase() || 'Crypto'}` : 
-                     selectedDeposit.paymentMethod}
+                    {selectedDeposit.paymentMethod === 'bank' ? 'Bank Transfer' :
+                      selectedDeposit.paymentMethod === 'zelle' ? 'Zelle' :
+                        selectedDeposit.paymentMethod === 'square' ? 'Square' :
+                          selectedDeposit.paymentMethod === 'paypal' ? 'PayPal' :
+                            selectedDeposit.paymentMethod === 'crypto' ? `${selectedDeposit.cryptoType?.toUpperCase() || 'Crypto'}` :
+                              selectedDeposit.paymentMethod}
                   </p>
                 </div>
                 <div>
@@ -2167,7 +3173,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                   <p className="font-medium">{new Date(selectedDeposit.createdAt).toLocaleString()}</p>
                 </div>
               </div>
-              
+
               {selectedDeposit.settlementDetails && (
                 <div className="p-4 bg-muted/30 rounded-lg">
                   <h4 className="font-semibold mb-3">Settlement Details</h4>
@@ -2191,7 +3197,7 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                   </div>
                 </div>
               )}
-              
+
               {selectedDeposit.proofNotes && (
                 <div>
                   <Label className="text-muted-foreground text-xs">Proof Notes</Label>
@@ -2239,7 +3245,7 @@ const WithdrawalsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWal
   const updateWithdrawal = async (withdrawalId: string, userId: string, amount: number, newStatus: 'approved' | 'rejected') => {
     try {
       await api.patch(`/admin/withdrawals/${withdrawalId}`, { status: newStatus });
-      
+
       toast({ title: "Success", description: `Withdrawal ${newStatus}` });
       fetchWithdrawals();
       onWalletUpdate();

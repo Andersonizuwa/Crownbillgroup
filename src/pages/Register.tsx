@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -14,12 +14,12 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "../contexts/AuthContext";
-import { 
-  User, 
-  FileText, 
-  Home, 
-  CreditCard, 
+import { useAuth } from "@/hooks/useAuth";
+import {
+  User,
+  FileText,
+  Home,
+  CreditCard,
   Shield,
   Building2,
   ArrowRight,
@@ -42,15 +42,9 @@ const steps = [
 const Register = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { register, user, isAdmin } = useAuth();
+  const { register } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
- 
-  useEffect(() => {
-    if (user && !isSubmitting) {
-      navigate(isAdmin ? "/admin" : "/dashboard");
-    }
-  }, [user, isAdmin, isSubmitting, navigate]);
 
   const [formData, setFormData] = useState({
     // Step 1 - Personal Info
@@ -100,25 +94,25 @@ const Register = () => {
 
   const validateFile = (file: File | null, type: 'id' | 'address'): string | null => {
     if (!file) return null;
-    
+
     // Check file size (max 10MB)
     const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       return "File size must be less than 10MB";
     }
-    
+
     // Check file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
     if (!validTypes.includes(file.type)) {
       return "Please upload a valid document (JPG, PNG, or PDF)";
     }
-    
+
     // Check minimum file size (at least 50KB to be a real document)
     const minSize = 50 * 1024;
     if (file.size < minSize) {
       return "File appears to be too small. Please upload a clear, readable document";
     }
-    
+
     return null;
   };
 
@@ -132,7 +126,7 @@ const Register = () => {
         return; // Don't set the file if validation fails
       }
     }
-    
+
     setFormData((prev) => ({ ...prev, [name]: file }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -146,18 +140,6 @@ const Register = () => {
       case 1:
         if (!formData.fullName.trim()) newErrors.fullName = "Full name is required";
         if (!formData.dateOfBirth) newErrors.dateOfBirth = "Date of birth is required";
-        // Validate date of birth is not from current year or in the future
-        if (formData.dateOfBirth) {
-          const dob = new Date(formData.dateOfBirth);
-          const today = new Date();
-          const currentYear = today.getFullYear();
-          
-          if (dob.getFullYear() > currentYear - 1) {
-            newErrors.dateOfBirth = "Date of birth cannot be from the current year or in the future";
-          } else if (dob > today) {
-            newErrors.dateOfBirth = "Date of birth cannot be in the future";
-          }
-        }
         if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
         if (!formData.email.trim()) newErrors.email = "Email is required";
         else if (!/^\S+@\S+\.\S+$/.test(formData.email)) newErrors.email = "Invalid email format";
@@ -213,47 +195,51 @@ const Register = () => {
     if (!validateStep(currentStep)) return;
 
     setIsSubmitting(true);
-    
+
     try {
-      // Create user account via backend (MySQL) with all profile details
-      await register(formData);
+      await register(formData.email, formData.password, formData.fullName);
 
       toast({
         title: "Account Created Successfully",
-        description: "Welcome to CrownBillGroup!",
+        description: "Welcome to CrownBillGroup! You can now log in.",
       });
-      navigate("/dashboard");
+      navigate("/login");
     } catch (err: any) {
+      console.error("Registration error in component:", err);
+
+      const isDuplicateUser = err.message?.includes("User already exists");
+
       toast({
-        title: "Registration Failed",
-        description: err.message || "An error occurred. Please try again.",
-        variant: "destructive",
+        title: isDuplicateUser ? "Account Already Exists" : "Registration Failed",
+        description: isDuplicateUser
+          ? "This email is already registered. Please sign in or use a different email address."
+          : (err.message || "An error occurred. Please try again."),
+        variant: isDuplicateUser ? "default" : "destructive",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const FileUpload = ({ 
-    name, 
-    label, 
+  const FileUpload = ({
+    name,
+    label,
     accept = "image/*,.pdf",
-    error 
-  }: { 
-    name: string; 
-    label: string; 
+    error
+  }: {
+    name: string;
+    label: string;
     accept?: string;
     error?: string;
   }) => {
     const file = formData[name as keyof typeof formData] as File | null;
-    
+
     return (
       <div className="space-y-2">
         <Label className="text-foreground">{label}</Label>
-        <div 
-          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-            error ? "border-destructive" : "border-border hover:border-accent/50"
-          }`}
+        <div
+          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${error ? "border-destructive" : "border-border hover:border-accent/50"
+            }`}
         >
           <input
             type="file"
@@ -432,9 +418,9 @@ const Register = () => {
               {errors.idType && <p className="text-sm text-destructive">{errors.idType}</p>}
             </div>
 
-            <FileUpload 
-              name="idDocument" 
-              label="Upload ID Document *" 
+            <FileUpload
+              name="idDocument"
+              label="Upload ID Document *"
               error={errors.idDocument}
             />
 
@@ -453,9 +439,9 @@ const Register = () => {
       case 3:
         return (
           <div className="space-y-6 animate-fade-in">
-            <FileUpload 
-              name="addressDocument" 
-              label="Proof of Address *" 
+            <FileUpload
+              name="addressDocument"
+              label="Proof of Address *"
               error={errors.addressDocument}
             />
 
@@ -508,8 +494,8 @@ const Register = () => {
             <div className="bg-muted/50 rounded-lg p-4">
               <h4 className="font-medium text-foreground mb-2">Why We Need This</h4>
               <p className="text-sm text-muted-foreground">
-                Financial regulations require us to collect tax information to ensure compliance 
-                with reporting requirements. Your information is securely stored and only used 
+                Financial regulations require us to collect tax information to ensure compliance
+                with reporting requirements. Your information is securely stored and only used
                 for regulatory purposes.
               </p>
             </div>
@@ -532,11 +518,11 @@ const Register = () => {
             <div className="space-y-4">
               <Label>Are you a Politically Exposed Person (PEP)? *</Label>
               <p className="text-sm text-muted-foreground">
-                A PEP is someone who holds or has held a prominent public position, or is a 
+                A PEP is someone who holds or has held a prominent public position, or is a
                 close family member or associate of such a person.
               </p>
-              <RadioGroup 
-                value={formData.isPEP} 
+              <RadioGroup
+                value={formData.isPEP}
                 onValueChange={(v) => handleSelectChange("isPEP", v)}
                 className="flex gap-6"
               >
@@ -571,8 +557,8 @@ const Register = () => {
             <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
               <h4 className="font-medium text-foreground mb-2">Important Notice</h4>
               <p className="text-sm text-muted-foreground">
-                Submitted information is manually reviewed for compliance purposes. 
-                This process typically takes 24-48 business hours. You will be notified 
+                Submitted information is manually reviewed for compliance purposes.
+                This process typically takes 24-48 business hours. You will be notified
                 once your application has been reviewed.
               </p>
             </div>
@@ -592,13 +578,13 @@ const Register = () => {
             <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
               <Checkbox
                 id="hasBusiness"
-                checked={formData.hasBusiness}
+                checked={!formData.hasBusiness}
                 onCheckedChange={(checked) => {
-                  setFormData(prev => ({ ...prev, hasBusiness: Boolean(checked) }));
+                  setFormData(prev => ({ ...prev, hasBusiness: !checked }));
                 }}
               />
               <Label htmlFor="hasBusiness" className="cursor-pointer font-medium">
-                I have a business
+                I don't have a business
               </Label>
             </div>
 
@@ -679,7 +665,7 @@ const Register = () => {
             <div className="bg-accent/5 border border-accent/20 rounded-lg p-4">
               <h4 className="font-medium text-foreground mb-2">Why We Need This</h4>
               <p className="text-sm text-muted-foreground">
-                This information helps us determine loan eligibility and provide appropriate financial services 
+                This information helps us determine loan eligibility and provide appropriate financial services
                 tailored to your business needs. All information is kept confidential and secure.
               </p>
             </div>
@@ -710,7 +696,7 @@ const Register = () => {
             <div className="flex items-center justify-between relative">
               {/* Progress Line */}
               <div className="absolute top-5 left-0 right-0 h-0.5 bg-border">
-                <div 
+                <div
                   className="h-full bg-accent transition-all duration-500"
                   style={{ width: `${((currentStep - 1) / (steps.length - 1)) * 100}%` }}
                 />
@@ -719,13 +705,12 @@ const Register = () => {
               {steps.map((step) => (
                 <div key={step.id} className="relative flex flex-col items-center z-10">
                   <div
-                    className={`step-indicator ${
-                      step.id < currentStep
-                        ? "step-indicator-completed"
-                        : step.id === currentStep
+                    className={`step-indicator ${step.id < currentStep
+                      ? "step-indicator-completed"
+                      : step.id === currentStep
                         ? "step-indicator-active"
                         : "step-indicator-pending"
-                    }`}
+                      }`}
                   >
                     {step.id < currentStep ? (
                       <CheckCircle2 className="h-5 w-5" />
@@ -733,9 +718,8 @@ const Register = () => {
                       <step.icon className="h-5 w-5" />
                     )}
                   </div>
-                  <span className={`mt-2 text-xs font-medium hidden sm:block ${
-                    step.id === currentStep ? "text-accent" : "text-muted-foreground"
-                  }`}>
+                  <span className={`mt-2 text-xs font-medium hidden sm:block ${step.id === currentStep ? "text-accent" : "text-muted-foreground"
+                    }`}>
                     {step.title}
                   </span>
                 </div>
@@ -769,8 +753,8 @@ const Register = () => {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               ) : (
-                <Button 
-                  variant="accent" 
+                <Button
+                  variant="accent"
                   onClick={handleSubmit}
                   disabled={isSubmitting}
                 >

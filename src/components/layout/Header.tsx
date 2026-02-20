@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, ChevronDown, User, Settings, ArrowRightLeft, HelpCircle, LayoutDashboard, LogOut, Bitcoin, DollarSign } from "lucide-react";
+import { Menu, X, ChevronDown, User, Settings, ArrowRightLeft, HelpCircle, LayoutDashboard, LogOut, Bitcoin, DollarSign, TrendingUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,9 +28,11 @@ const Header = () => {
     { label: "Why CrownBill", path: "/why-fidelity" },
     { label: "Grants", path: "/grants" },
     { label: "Investment", path: "/investment" },
+    { label: "CBPTA", path: "/proprietary-algorithm" },
   ];
 
   const tradeSubItems = [
+    { label: "CBPTA (Proprietary Algorithm)", path: "/proprietary-algorithm", icon: TrendingUp },
     { label: "Trade Stocks", path: "/trade", icon: ArrowRightLeft },
     { label: "Buy Crypto", path: "/crypto", icon: Bitcoin },
     { label: "Fund Account", path: "/fund-account", icon: DollarSign },
@@ -54,7 +56,7 @@ const Header = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center space-x-1">
-            {navItems.map((item) => (
+            {navItems.filter(item => !user || item.path !== "/investment").map((item) => (
               <Link key={item.path} to={item.path}>
                 <Button
                   variant="nav"
@@ -159,7 +161,7 @@ const Header = () => {
         {mobileMenuOpen && (
           <div className="lg:hidden py-4 border-t border-border animate-fade-in">
             <nav className="flex flex-col space-y-2">
-              {navItems.map((item) => (
+              {navItems.filter(item => !user || item.path !== "/investment").map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
@@ -167,15 +169,14 @@ const Header = () => {
                 >
                   <Button
                     variant="ghost"
-                    className={`w-full justify-start ${
-                      isActive(item.path) ? "bg-muted" : ""
-                    }`}
+                    className={`w-full justify-start ${isActive(item.path) ? "bg-muted" : ""
+                      }`}
                   >
                     {item.label}
                   </Button>
                 </Link>
               ))}
-              
+
               <div className="py-2">
                 <p className="px-4 py-2 text-sm font-semibold text-muted-foreground">
                   Invest & Trade
@@ -211,8 +212,8 @@ const Header = () => {
                         </Button>
                       </Link>
                     )}
-                    <Button 
-                      variant="destructive" 
+                    <Button
+                      variant="destructive"
                       className="w-full"
                       onClick={() => {
                         handleLogout();

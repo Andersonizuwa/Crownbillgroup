@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { v4 as uuidv4 } from 'uuid';
+import EmailService from '../lib/email';
 
 interface AuthRequest extends Request {
   user?: any;
@@ -15,7 +16,7 @@ interface AuthRequest extends Request {
 export const getProfile = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user.userId;
-    
+
     // First, try to fetch the profile
     let profile = await prisma.profile.findUnique({
       where: { userId },
@@ -69,13 +70,13 @@ export const updateProfile = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user.userId;
     const updateData = req.body;
-    
+
     // Validate date of birth if it's being updated
     if (updateData.dateOfBirth) {
       const dob = new Date(updateData.dateOfBirth);
       const today = new Date();
       const currentYear = today.getFullYear();
-      
+
       if (dob.getFullYear() > currentYear - 1) {
         return res.status(400).json({ error: 'Date of birth cannot be from the current year or in the future' });
       } else if (dob > today) {
@@ -184,6 +185,27 @@ export const createDeposit = async (req: AuthRequest, res: Response) => {
       }
     });
 
+    // Record deposit activity for admin notifications
+    try {
+      await prisma.activitylog.create({
+        data: {
+          id: uuidv4(),
+          userId,
+          action: 'deposit_created',
+          details: {
+            amount,
+            paymentMethod,
+            cryptoType: cryptoType || null,
+            status: initialStatus,
+            depositId: deposit.id
+          },
+          ipAddress: req.ip || null
+        }
+      });
+    } catch (logError) {
+      console.error('Error recording deposit activity:', logError);
+    }
+
     res.status(201).json(deposit);
   } catch (error) {
     console.error('Error creating deposit:', error);
@@ -199,10 +221,10 @@ export const submitDepositProof = async (req: AuthRequest, res: Response) => {
   try {
     const depositId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const { transactionHash, proofNotes } = req.body;
-    
+
     // If files were uploaded, process them
     const files = req.files as any[] || [];
-    
+
     // Store file paths if any files were uploaded
     const fileUrls: string[] = [];
     if (files && files.length > 0) {
@@ -214,21 +236,21 @@ export const submitDepositProof = async (req: AuthRequest, res: Response) => {
         fileUrls.push(`/uploads/${file.filename}`); // Placeholder
       }
     }
-    
-        // Get existing settlement details
+
+    // Get existing settlement details
     const existingDeposit = await prisma.deposit.findUnique({
       where: { id: depositId },
     });
-    
+
     // Prepare updated settlement details with proof files
-    let updatedSettlementDetails = existingDeposit?.settlementDetails ? {...existingDeposit.settlementDetails as any} : {};
+    let updatedSettlementDetails = existingDeposit?.settlementDetails ? { ...existingDeposit.settlementDetails as any } : {};
     if (fileUrls.length > 0) {
       updatedSettlementDetails = {
         ...updatedSettlementDetails,
         proofFileUrls: fileUrls
       };
     }
-    
+
     // Update deposit with proof information
     const updatedDeposit = await prisma.deposit.update({
       where: { id: depositId },
@@ -240,7 +262,7 @@ export const submitDepositProof = async (req: AuthRequest, res: Response) => {
         updatedAt: new Date()
       }
     });
-    
+
     res.json({ message: 'Proof submitted successfully', deposit: updatedDeposit });
   } catch (error) {
     console.error('Error submitting deposit proof:', error);
@@ -253,15 +275,15 @@ export const getDeposit = async (req: AuthRequest, res: Response) => {
   try {
     const depositId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const userId = req.user.userId;
-    
+
     const deposit = await prisma.deposit.findUnique({
       where: { id: depositId, userId },
     });
-    
+
     if (!deposit) {
       return res.status(404).json({ error: 'Deposit not found' });
     }
-    
+
     res.json(deposit);
   } catch (error) {
     console.error('Error fetching deposit:', error);
@@ -316,6 +338,46 @@ export const createWithdrawal = async (req: AuthRequest, res: Response) => {
         updatedAt: new Date()
       }
     });
+
+    // Record withdrawal activity for admin notifications
+    try {
+      await prisma.activitylog.create({
+        data: {
+          id: uuidv4(),
+          userId,
+          action: 'withdrawal_created',
+          details: {
+            amount,
+            withdrawalMethod,
+            hasWalletAddress: !!walletAddress,
+            hasBankDetails: !!bankDetails,
+            withdrawalId: withdrawal.id
+          },
+          ipAddress: req.ip || null
+        }
+      });
+    } catch (logError) {
+      console.error('Error recording withdrawal activity:', logError);
+    }
+
+    // Send admin notification
+    try {
+      await EmailService.sendAdminNotification(
+        'New Withdrawal Request',
+        `A user has requested a withdrawal of $${amount} via ${withdrawalMethod}.`,
+        {
+          withdrawalId: withdrawal.id,
+          userId: userId,
+          amount,
+          withdrawalMethod,
+          hasWalletAddress: !!walletAddress,
+          hasBankDetails: !!bankDetails,
+          timestamp: new Date().toISOString()
+        }
+      );
+    } catch (emailError) {
+      console.error('Error sending admin notification:', emailError);
+    }
 
     res.status(201).json(withdrawal);
   } catch (error) {
@@ -393,7 +455,7 @@ export const createCopyTradeAttempt = async (req: AuthRequest, res: Response) =>
 export const getUserCopyTradeAttempts = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user.userId;
-    
+
     const attempts = await prisma.copytradeattempt.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' }
@@ -453,15 +515,15 @@ export const getGrantApplications = async (req: AuthRequest, res: Response) => {
 export const createGrantApplication = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user.userId;
-    const { 
-      grantType, 
-      organizationName, 
-      organizationType, 
-      contactName, 
-      contactEmail, 
-      contactPhone, 
-      projectDescription, 
-      requestedAmount 
+    const {
+      grantType,
+      organizationName,
+      organizationType,
+      contactName,
+      contactEmail,
+      contactPhone,
+      projectDescription,
+      requestedAmount
     } = req.body;
 
     const grant = await prisma.grantapplication.create({
@@ -480,6 +542,26 @@ export const createGrantApplication = async (req: AuthRequest, res: Response) =>
         updatedAt: new Date()
       }
     });
+
+    // Record grant application activity
+    try {
+      await prisma.activitylog.create({
+        data: {
+          id: uuidv4(),
+          userId,
+          action: 'grant_application_created',
+          details: {
+            grantType,
+            organizationName,
+            requestedAmount,
+            applicationId: grant.id
+          },
+          ipAddress: req.ip || null
+        }
+      });
+    } catch (logError) {
+      console.error('Error recording grant activity:', logError);
+    }
 
     res.status(201).json(grant);
   } catch (error) {
@@ -506,29 +588,29 @@ export const getWithdrawals = async (req: AuthRequest, res: Response) => {
 export const cancelDeposit = async (req: AuthRequest, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const userId = req.user.userId;
-  
+
   try {
     // Find the deposit
     const deposit = await prisma.deposit.findUnique({
       where: { id },
     });
-    
+
     if (!deposit) {
       return res.status(404).json({ error: 'Deposit not found' });
     }
-    
+
     // Check if the deposit belongs to the user
     if (deposit.userId !== userId) {
       return res.status(403).json({ error: 'Unauthorized' });
     }
-    
+
     // Only allow cancellation for certain statuses (e.g., awaiting_payment, pending_matching)
     if (deposit.status !== 'awaiting_payment' && deposit.status !== 'pending_matching') {
-      return res.status(400).json({ 
-        error: 'Cannot cancel deposit in current status' 
+      return res.status(400).json({
+        error: 'Cannot cancel deposit in current status'
       });
     }
-    
+
     // Update deposit status to cancelled
     const updatedDeposit = await prisma.deposit.update({
       where: { id },
@@ -537,7 +619,7 @@ export const cancelDeposit = async (req: AuthRequest, res: Response) => {
         updatedAt: new Date(),
       },
     });
-    
+
     res.json(updatedDeposit);
   } catch (error) {
     console.error('Error cancelling deposit:', error);

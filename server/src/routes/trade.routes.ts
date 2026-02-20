@@ -1,12 +1,15 @@
 import { Router } from 'express';
-import { 
+import {
   executeBuyTrade,
   executeSellTrade,
   getHoldings,
   getTradeHistory,
   updateHoldingPrices,
   getCurrentPrices,
-  getRecentTrades
+  getRecentTrades,
+  searchStocks,
+  getStockDetails,
+  getStockQuote
 } from '../controllers/trade.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
@@ -14,6 +17,11 @@ const router = Router();
 
 // Market data (public)
 router.get('/prices', getCurrentPrices);
+
+// Stock search and details (public)
+router.get('/search', searchStocks);
+router.get('/stock/:symbol', getStockDetails);
+router.get('/quote/:symbol', getStockQuote);
 
 // Recent trades (public)
 router.get('/recent', getRecentTrades);
