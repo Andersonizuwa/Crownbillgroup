@@ -765,14 +765,7 @@ export const grantAlgoAccess = async (req: Request, res: Response) => {
           id: uuidv4(),
           userId: application.userId,
           action: 'algo_access_granted',
-          details: {
-            applicationId: application.id,
-            planId: access.plan.id,
-            planName: access.plan.name,
-            returnPercentage: access.plan.returnPercentage,
-            durationDays: access.customDurationDays ?? access.plan.durationDays,
-            grantedBy: adminId || null,
-          },
+          details: `Granted "${access.plan.name}" for ${access.customDurationDays ?? access.plan.durationDays} days with ${access.plan.returnPercentage}% return.`,
           ipAddress: null,
         },
       });

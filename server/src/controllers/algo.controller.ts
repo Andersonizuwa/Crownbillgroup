@@ -99,13 +99,7 @@ export const submitApplication = async (req: AuthRequest, res: Response) => {
                     id: uuidv4(),
                     userId,
                     action: 'algo_application_created',
-                    details: {
-                        applicationId: application.id,
-                        incomeBand: annualIncome,
-                        netWorthBand: netWorth,
-                        allocationPercentage,
-                        investmentHorizon,
-                    },
+                    details: `Application created with income band "${annualIncome}", net worth "${netWorth}", allocation "${allocationPercentage}", and horizon "${investmentHorizon}".`,
                     ipAddress: req.ip || null,
                 },
             });

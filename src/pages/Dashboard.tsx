@@ -116,11 +116,13 @@ const Dashboard = () => {
       }
     } catch (error: any) {
       console.error('Error fetching user data:', error);
-      toast({
-        title: "Error",
-        description: error.response?.data?.error || "Failed to load user data",
-        variant: "destructive"
-      });
+      if (error.response?.status !== 401) {
+        toast({
+          title: "Error",
+          description: error.response?.data?.error || "Failed to load user data",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsLoading(false);
     }

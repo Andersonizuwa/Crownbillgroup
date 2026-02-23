@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import api from '../lib/api';
 
-// Define types based on your backend response
 interface User {
   id: string;
   email: string;
@@ -14,9 +13,12 @@ interface AuthContextType {
   token: string | null;
   isAdmin: boolean;
   isLoading: boolean;
+  showTimeoutWarning: boolean;
+  timeUntilTimeout: number;
   login: (email: string, password: string) => Promise<{ isAdmin: boolean }>;
   register: (email: string, password: string, full_name: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  extendSession: () => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,24 +31,82 @@ export const useAuth = () => {
   return context;
 };
 
+export class AuthEventEmitter {
+  private listeners: Map<string, Function[]> = new Map();
+
+  on(event: string, callback: Function) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event)!.push(callback);
+  }
+
+  emit(event: string, data?: any) {
+    if (this.listeners.has(event)) {
+      this.listeners.get(event)!.forEach(callback => callback(data));
+    }
+  }
+}
+
+export const authEvents = new AuthEventEmitter();
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [token, setToken] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+  const [timeUntilTimeout, setTimeUntilTimeout] = useState(300);
 
   useEffect(() => {
-    // On mount, check if we have user data in localStorage to persist session
-    const storedUser = localStorage.getItem('user');
-    const storedToken = localStorage.getItem('token');
-    const storedIsAdmin = localStorage.getItem('isAdmin') === 'true';
+    const validateAndRestoreSession = async () => {
+      const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      const storedIsAdmin = localStorage.getItem('isAdmin') === 'true';
 
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
-      setIsAdmin(storedIsAdmin);
-    }
-    setIsLoading(false);
+      if (storedToken && storedUser) {
+        try {
+          setToken(storedToken);
+          const response = await api.get('/user/profile');
+          if (response.data) {
+            const parsedUser = JSON.parse(storedUser);
+            setUser(parsedUser);
+            setIsAdmin(storedIsAdmin);
+          }
+        } catch (error: any) {
+          if (error.response?.status === 401 || error.code === 'ERR_NETWORK') {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('isAdmin');
+            setToken(null);
+            setUser(null);
+            setIsAdmin(false);
+          }
+        }
+      }
+      setIsLoading(false);
+    };
+
+    validateAndRestoreSession();
+
+    const handleSessionExpired = () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('isAdmin');
+      setToken(null);
+      setUser(null);
+      setIsAdmin(false);
+      setShowTimeoutWarning(false);
+    };
+
+    authEvents.on('logout', handleSessionExpired);
+
+    return () => {
+      const listeners = (authEvents as any).listeners;
+      if (listeners.has('logout')) {
+        listeners.get('logout').length = 0;
+      }
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<{ isAdmin: boolean }> => {
@@ -107,17 +167,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    setIsAdmin(false);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('isAdmin');
+  const logout = async () => {
+    try {
+      if (token) {
+        await api.post('/auth/logout');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      setToken(null);
+      setIsAdmin(false);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('isAdmin');
+      setShowTimeoutWarning(false);
+    }
+  };
+
+  const extendSession = () => {
+    setShowTimeoutWarning(false);
+    setTimeUntilTimeout(300);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAdmin, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      token, 
+      isAdmin, 
+      isLoading, 
+      showTimeoutWarning, 
+      timeUntilTimeout,
+      login, 
+      register, 
+      logout,
+      extendSession
+    }}>
       {children}
     </AuthContext.Provider>
   );

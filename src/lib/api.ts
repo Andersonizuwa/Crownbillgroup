@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-// Use port 8080 for frontend to avoid CORS issues with backend on port 5000
+let authEventEmitter: any = null;
+
+export const setAuthEventEmitter = (emitter: any) => {
+  authEventEmitter = emitter;
+};
+
 const api = axios.create({
   baseURL: 'http://localhost:5000/api/v1',
   withCredentials: true,
@@ -74,10 +79,16 @@ api.interceptors.response.use(
           return api(originalRequest);
         } catch (refreshError) {
           processQueue(refreshError, null);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          localStorage.removeItem('isAdmin');
-          window.location.href = '/login';
+          
+          if (authEventEmitter) {
+            authEventEmitter.emit('logout');
+          } else {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('isAdmin');
+            window.location.href = '/login';
+          }
+          
           return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;

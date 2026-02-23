@@ -1,13 +1,15 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./contexts/AuthContext";
+import { authEvents } from "./contexts/AuthContext";
+import { useToast } from "./hooks/use-toast";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import ResetPassword from "./pages/ResetPassword";
 import Trade from "./pages/Trade";
 import Crypto from "./pages/Crypto";
 import Dashboard from "./pages/Dashboard";
@@ -29,7 +31,114 @@ import SessionTimeoutModal from "./components/SessionTimeoutModal";
 
 const queryClient = new QueryClient();
 
-// Protected Route Component
+const AppContent = () => {
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    const handleLogout = () => {
+      toast({
+        title: "Session Expired",
+        description: "Your session has expired. Please log in again.",
+        variant: "destructive",
+      });
+    };
+
+    authEvents.on('logout', handleLogout);
+
+    return () => {
+      const listeners = (authEvents as any).listeners;
+      if (listeners.has('logout')) {
+        listeners.get('logout').length = 0;
+      }
+    };
+  }, [toast]);
+
+  return (
+    <Routes>
+      <Route path="/" element={<Index />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+
+      {/* Protected Routes */}
+      <Route path="/trade" element={
+        <ProtectedRoute>
+          <Trade />
+        </ProtectedRoute>
+      } />
+      <Route path="/crypto" element={
+        <ProtectedRoute>
+          <Crypto />
+        </ProtectedRoute>
+      } />
+      <Route path="/dashboard" element={
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/fund-account" element={
+        <ProtectedRoute>
+          <FundAccount />
+        </ProtectedRoute>
+      } />
+      <Route path="/withdraw" element={
+        <ProtectedRoute>
+          <Withdraw />
+        </ProtectedRoute>
+      } />
+      <Route path="/transactions" element={
+        <ProtectedRoute>
+          <TransactionHistory />
+        </ProtectedRoute>
+      } />
+      <Route path="/portfolio" element={
+        <ProtectedRoute>
+          <Portfolio />
+        </ProtectedRoute>
+      } />
+      <Route path="/profile" element={
+        <ProtectedRoute>
+          <Profile />
+        </ProtectedRoute>
+      } />
+      <Route path="/grants" element={
+        <ProtectedRoute>
+          <Grants />
+        </ProtectedRoute>
+      } />
+      <Route path="/grant-application" element={
+        <ProtectedRoute>
+          <GrantApplication />
+        </ProtectedRoute>
+      } />
+      <Route path="/proprietary-algorithm" element={
+        <ProtectedRoute>
+          <ProprietaryAlgorithm />
+        </ProtectedRoute>
+      } />
+      <Route path="/proprietary-algorithm/apply" element={
+        <ProtectedRoute>
+          <ProprietaryAlgorithmApply />
+        </ProtectedRoute>
+      } />
+
+      {/* Public Routes */}
+      <Route path="/why-fidelity" element={<WhyFidelity />} />
+      <Route path="/investment" element={<Investment />} />
+      <Route path="/customer-service" element={<CustomerService />} />
+
+      {/* Admin Route */}
+      <Route path="/admin" element={
+        <AdminRoute>
+          <AdminDashboard />
+        </AdminRoute>
+      } />
+
+      {/* Catch-all */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
+
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const authContext = useAuth();
   const { user, isLoading } = authContext || {};
@@ -49,7 +158,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// Admin Route Component
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const authContext = useAuth();
   const { user, isAdmin, isLoading } = authContext || {};
@@ -94,89 +202,7 @@ const App = () => {
               onExtend={extendSession || (() => { })}
             />
           )}
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-
-            {/* Protected Routes */}
-            <Route path="/trade" element={
-              <ProtectedRoute>
-                <Trade />
-              </ProtectedRoute>
-            } />
-            <Route path="/crypto" element={
-              <ProtectedRoute>
-                <Crypto />
-              </ProtectedRoute>
-            } />
-            <Route path="/dashboard" element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/fund-account" element={
-              <ProtectedRoute>
-                <FundAccount />
-              </ProtectedRoute>
-            } />
-            <Route path="/withdraw" element={
-              <ProtectedRoute>
-                <Withdraw />
-              </ProtectedRoute>
-            } />
-            <Route path="/transactions" element={
-              <ProtectedRoute>
-                <TransactionHistory />
-              </ProtectedRoute>
-            } />
-            <Route path="/portfolio" element={
-              <ProtectedRoute>
-                <Portfolio />
-              </ProtectedRoute>
-            } />
-            <Route path="/profile" element={
-              <ProtectedRoute>
-                <Profile />
-              </ProtectedRoute>
-            } />
-            <Route path="/grants" element={
-              <ProtectedRoute>
-                <Grants />
-              </ProtectedRoute>
-            } />
-            <Route path="/grant-application" element={
-              <ProtectedRoute>
-                <GrantApplication />
-              </ProtectedRoute>
-            } />
-            <Route path="/proprietary-algorithm" element={
-              <ProtectedRoute>
-                <ProprietaryAlgorithm />
-              </ProtectedRoute>
-            } />
-            <Route path="/proprietary-algorithm/apply" element={
-              <ProtectedRoute>
-                <ProprietaryAlgorithmApply />
-              </ProtectedRoute>
-            } />
-
-            {/* Public Routes */}
-            <Route path="/why-fidelity" element={<WhyFidelity />} />
-            <Route path="/investment" element={<Investment />} />
-            <Route path="/customer-service" element={<CustomerService />} />
-
-            {/* Admin Route */}
-            <Route path="/admin" element={
-              <AdminRoute>
-                <AdminDashboard />
-              </AdminRoute>
-            } />
-
-            {/* Catch-all */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <AppContent />
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

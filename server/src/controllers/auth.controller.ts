@@ -7,10 +7,13 @@ import crypto from 'crypto';
 import { AuthRequest } from '../middleware/auth.middleware';
 import EmailService from '../lib/email';
 
+import EmailService from '../lib/email';
+
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 const getClientIp = (req: Request) => {
   const forwarded = req.headers['x-forwarded-for'];
+
   if (typeof forwarded === 'string') {
     return forwarded.split(',')[0].trim();
   }
@@ -256,65 +259,4 @@ export const magicLink = async (req: Request, res: Response) => {
   }
 };
 
-export const resetPasswordRequest = async (req: Request, res: Response) => {
-  try {
-    const { email } = req.body;
-    const token = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 3600000); // 1 hour
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    await prisma.passwordresets.create({
-      data: {
-        id: uuidv4(),
-        userId: user.id,
-        email,
-        token: token,
-        expiresAt: expires
-      }
-    });
-
-    // In a real app, send email here
-    console.log(`Reset link for ${email}: ${process.env.FRONTEND_URL}/reset-password?token=${token}`);
-
-    res.json({ message: 'Password reset link sent' });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Error processing reset request' });
-  }
-};
-
-export const resetPassword = async (req: Request, res: Response) => {
-  try {
-    const { token, newPassword } = req.body;
-
-    const resetRequest = await prisma.passwordresets.findFirst({
-      where: {
-        token,
-        used: false,
-        expiresAt: { gt: new Date() }
-      }
-    });
-
-    if (!resetRequest) {
-      return res.status(400).json({ error: 'Invalid or expired token' });
-    }
-
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: resetRequest.userId },
-        data: { passwordHash }
-      }),
-      prisma.passwordresets.update({
-        where: { id: resetRequest.id },
-        data: { used: true }
-      })
-    ]);
-
-    res.json({ message: 'Password reset successful' });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Error resetting password' });
-  }
-};
