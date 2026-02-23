@@ -13,8 +13,12 @@ import settingsRoutes from './routes/settings.routes';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173'];
+
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:8081'], // Matches your Vite frontend port
+  origin: allowedOrigins,
   credentials: true
 }));
 app.use(express.json());
