@@ -107,14 +107,6 @@ const Header = () => {
                       Dashboard
                     </Link>
                   </DropdownMenuItem>
-                  {isAdmin && (
-                    <DropdownMenuItem asChild>
-                      <Link to="/admin" className="flex items-center gap-2 cursor-pointer">
-                        <Settings className="h-4 w-4" />
-                        Admin Panel
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
                   <DropdownMenuItem asChild>
                     <Link to="/profile" className="flex items-center gap-2 cursor-pointer">
                       <User className="h-4 w-4" />
@@ -204,14 +196,6 @@ const Header = () => {
                         Dashboard
                       </Button>
                     </Link>
-                    {isAdmin && (
-                      <Link to="/admin" onClick={() => setMobileMenuOpen(false)}>
-                        <Button variant="outline" className="w-full">
-                          <Settings className="h-4 w-4 mr-2" />
-                          Admin Panel
-                        </Button>
-                      </Link>
-                    )}
                     <Button
                       variant="destructive"
                       className="w-full"
