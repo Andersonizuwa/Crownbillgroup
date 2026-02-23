@@ -44,7 +44,7 @@ import {
   LogOut,
   LayoutDashboard,
   History,
-  Settings,
+  Settings as SettingsIcon,
   FileCheck,
   CheckCircle,
   XCircle,
@@ -59,6 +59,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useAdminNotifications } from "@/hooks/useAdminNotifications";
+import AppSettings from "./AppSettings";
 
 interface UserProfile {
   id: string;
@@ -489,6 +490,14 @@ Fidelity Team`);
               <ArrowDownToLine className="h-4 w-4 mr-2" />
               Withdrawals
             </Button>
+            <Button
+              variant={activeTab === "settings" ? "secondary" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => setActiveTab("settings")}
+            >
+              <SettingsIcon className="h-4 w-4 mr-2" />
+              Settings
+            </Button>
           </nav>
         </aside>
 
@@ -771,6 +780,9 @@ Fidelity Team`);
                 </Table>
               </div>
             </div>
+          )}
+          {activeTab === "settings" && (
+            <AppSettings />
           )}
         </main>
       </div>

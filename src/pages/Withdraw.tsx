@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
+import { getAppSettings, AppSettings } from "@/lib/settings";
 
 interface Withdrawal {
   id: string;
@@ -56,6 +57,11 @@ const Withdraw = () => {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  useEffect(() => {
+    getAppSettings().then(setSettings);
+  }, []);
 
   const cryptoOptions = [
     { value: "btc", name: "Bitcoin (BTC)" },
@@ -389,9 +395,11 @@ const Withdraw = () => {
                 <p className="text-muted-foreground">
                   Email: <a href="mailto:ranaeputerbaugh@yahoo.com" className="text-accent hover:underline">ranaeputerbaugh@yahoo.com</a>
                 </p>
-                <p className="text-muted-foreground">
-                  WhatsApp: <a href="https://wa.me/16462337202" className="text-accent hover:underline">+1 (646) 233-7202</a>
-                </p>
+                {settings && (
+                  <p className="text-muted-foreground">
+                    WhatsApp: <a href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`} className="text-accent hover:underline">{settings.whatsappNumber}</a>
+                  </p>
+                )}
               </div>
             </div>
           </div>

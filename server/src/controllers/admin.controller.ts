@@ -3,6 +3,32 @@ import prisma from '../lib/prisma';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import EmailService from '../lib/email';
+import fs from 'fs/promises';
+import path from 'path';
+
+const settingsFilePath = path.join(__dirname, '..', '..', 'settings.json');
+
+export const updateSettings = async (req: Request, res: Response) => {
+  try {
+    const { usdtAddress, btcAddress, whatsappNumber } = req.body;
+
+    if (!usdtAddress || !btcAddress || !whatsappNumber) {
+      return res.status(400).json({ error: 'All settings are required' });
+    }
+
+    const settings = {
+      usdtAddress,
+      btcAddress,
+      whatsappNumber,
+    };
+
+    await fs.writeFile(settingsFilePath, JSON.stringify(settings, null, 2));
+
+    res.json({ message: 'Settings updated successfully', settings });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
 // 4.2 Admin User Management
 export const getUsers = async (req: Request, res: Response) => {

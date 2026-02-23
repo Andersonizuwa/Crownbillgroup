@@ -52,4 +52,7 @@ router.patch('/investment-plans/:id', adminController.updateInvestmentPlan);
 router.get('/user-investments', adminController.getAllUserInvestments);
 router.patch('/user-investments/:id/timeframe', adminController.updateUserInvestmentTimeframe);
 
+// 4.9 App Settings
+router.put('/settings', adminController.updateSettings);
+
 export default router;

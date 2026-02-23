@@ -452,3 +452,10 @@ enum algo_application_status {
   approved
   rejected
 }
+
+model AppSettings {
+  id             String @id @default("main")
+  usdtAddress    String
+  btcAddress     String
+  whatsappNumber String
+}

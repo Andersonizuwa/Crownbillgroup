@@ -33,6 +33,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/api";
+import { getAppSettings, AppSettings } from "@/lib/settings";
 
 const FundAccount = () => {
   const { user } = useAuth();
@@ -52,11 +53,16 @@ const FundAccount = () => {
   const [selectedDepositForProof, setSelectedDepositForProof] = useState<any | null>(null);
   const [settlementDetailsModalOpen, setSettlementDetailsModalOpen] = useState(false);
   const [depositForModal, setDepositForModal] = useState<any | null>(null);
+  const [settings, setSettings] = useState<AppSettings | null>(null);
 
-  const cryptoOptions = [
-    { value: "btc", name: "Bitcoin (BTC)", address: "bc1qhf7jrcwtadxeudx5fpvh94njlxqlgw4h5p4xql", network: "Bitcoin Network" },
-    { value: "usdt", name: "USDT (TRC20/ERC20)", address: "TScRwtiYR6A1nufXed2Hw6cVkvpyUAhChv", network: "TRC-20" },
-  ];
+  useEffect(() => {
+    getAppSettings().then(setSettings);
+  }, []);
+
+  const cryptoOptions = settings ? [
+    { value: "btc", name: "Bitcoin (BTC)", address: settings.btcAddress, network: "Bitcoin Network" },
+    { value: "usdt", name: "USDT (TRC20/ERC20)", address: settings.usdtAddress, network: "TRC-20" },
+  ] : [];
 
   const bankOptions = [
     { value: "zelle", name: "Zelle" },

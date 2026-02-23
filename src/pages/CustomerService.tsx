@@ -21,16 +21,24 @@ import {
   ArrowRight
 } from "lucide-react";
 import heroImage from "@/assets/hero-finance.jpg";
+import { getAppSettings, AppSettings } from "@/lib/settings";
+import { useState, useEffect } from "react";
 
 const CustomerService = () => {
-  const supportOptions = [
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  useEffect(() => {
+    getAppSettings().then(setSettings);
+  }, []);
+
+  const supportOptions = settings ? [
     {
       icon: Phone,
       title: "WhatsApp",
       description: "Chat with us on WhatsApp",
-      action: "+1 (646) 233-7202",
+      action: settings.whatsappNumber,
       available: "24/7",
-      link: "https://wa.me/16462337202",
+      link: `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`,
     },
     {
       icon: MessageCircle,
@@ -38,7 +46,7 @@ const CustomerService = () => {
       description: "Chat with support online",
       action: "Start Chat",
       available: "24/7",
-      link: "https://wa.me/16462337202",
+      link: `https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`,
     },
     {
       icon: Mail,
@@ -48,7 +56,7 @@ const CustomerService = () => {
       available: "Response within 24hrs",
       link: "mailto:ranaeputerbaugh@yahoo.com",
     },
-  ];
+  ] : [];
 
   const quickLinks = [
     { icon: FileText, title: "Account Statements", path: "#" },
@@ -119,7 +127,7 @@ const CustomerService = () => {
 
         {/* Support Options */}
         <div className="grid md:grid-cols-3 gap-6 mb-12">
-          {supportOptions.map((option) => (
+          {settings && supportOptions.map((option) => (
             <a 
               key={option.title} 
               href={option.link}
@@ -185,12 +193,14 @@ const CustomerService = () => {
             Still have questions? We're here to help.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="https://wa.me/16462337202" target="_blank" rel="noopener noreferrer">
-              <Button variant="accent" size="lg">
-                <MessageCircle className="mr-2 h-4 w-4" />
-                Chat on WhatsApp
-              </Button>
-            </a>
+            {settings && (
+              <a href={`https://wa.me/${settings.whatsappNumber.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
+                <Button variant="accent" size="lg">
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  Chat on WhatsApp
+                </Button>
+              </a>
+            )}
             <Link to="/register">
               <Button variant="outline" size="lg">
                 Open an Account
