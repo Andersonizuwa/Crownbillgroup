@@ -8,11 +8,11 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { 
-  Search, 
-  Phone, 
-  Mail, 
-  MessageCircle, 
+import {
+  Search,
+  Phone,
+  Mail,
+  MessageCircle,
   Clock,
   FileText,
   CreditCard,
@@ -52,9 +52,9 @@ const CustomerService = () => {
       icon: Mail,
       title: "Email Us",
       description: "Send us a message",
-      action: "ranaeputerbaugh@yahoo.com",
+      action: "support@crownbillgroup.com",
       available: "Response within 24hrs",
-      link: "mailto:ranaeputerbaugh@yahoo.com",
+      link: "mailto:support@crownbillgroup.com",
     },
   ] : [];
 
@@ -96,7 +96,7 @@ const CustomerService = () => {
     <Layout>
       {/* Hero Section */}
       <section className="relative overflow-hidden py-16">
-        <div 
+        <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: `url(${heroImage})` }}
         >
@@ -118,8 +118,8 @@ const CustomerService = () => {
         <div className="max-w-2xl mx-auto mb-12">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input 
-              placeholder="Search for help topics..." 
+            <Input
+              placeholder="Search for help topics..."
               className="pl-12 h-14 text-lg"
             />
           </div>
@@ -128,8 +128,8 @@ const CustomerService = () => {
         {/* Support Options */}
         <div className="grid md:grid-cols-3 gap-6 mb-12">
           {settings && supportOptions.map((option) => (
-            <a 
-              key={option.title} 
+            <a
+              key={option.title}
               href={option.link}
               target={option.link.startsWith('http') ? '_blank' : undefined}
               rel={option.link.startsWith('http') ? 'noopener noreferrer' : undefined}
@@ -154,8 +154,8 @@ const CustomerService = () => {
           <h2 className="text-xl font-semibold text-foreground mb-6 text-center">Quick Links</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {quickLinks.map((link) => (
-              <Link 
-                key={link.title} 
+              <Link
+                key={link.title}
                 to={link.path}
                 className="card-elevated p-4 flex items-center gap-3 hover:bg-muted/50 transition-colors"
               >

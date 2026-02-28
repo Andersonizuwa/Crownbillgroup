@@ -13,8 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  ArrowRight, 
+import {
+  ArrowRight,
   Bitcoin,
   Wallet,
   Clock,
@@ -77,7 +77,7 @@ const Withdraw = () => {
 
   const fetchWallet = async () => {
     if (!user) return;
-    
+
     try {
       const { data } = await api.get('/user/wallet');
       if (data) {
@@ -93,7 +93,7 @@ const Withdraw = () => {
 
   const fetchWithdrawals = async () => {
     if (!user) return;
-    
+
     try {
       const { data } = await api.get('/user/withdrawals');
       if (data) {
@@ -109,9 +109,9 @@ const Withdraw = () => {
 
   const handleSubmitWithdrawal = async () => {
     if (!user) return;
-    
+
     const withdrawAmount = parseFloat(amount);
-    
+
     if (!amount || withdrawAmount <= 0) {
       toast({
         variant: "destructive",
@@ -157,7 +157,7 @@ const Withdraw = () => {
     if (!confirmed) return;
 
     setIsSubmitting(true);
-    
+
     try {
       await api.post('/user/withdrawals', {
         amount: withdrawAmount,
@@ -250,16 +250,16 @@ const Withdraw = () => {
               <div className="space-y-6">
                 {/* Withdrawal Method Selection */}
                 <div className="flex gap-4">
-                  <Button 
-                    variant={withdrawalMethod === "crypto" ? "accent" : "outline"} 
+                  <Button
+                    variant={withdrawalMethod === "crypto" ? "accent" : "outline"}
                     className="flex-1 h-auto py-4"
                     onClick={() => setWithdrawalMethod("crypto")}
                   >
                     <Bitcoin className="mr-2 h-5 w-5" />
                     Crypto
                   </Button>
-                  <Button 
-                    variant={withdrawalMethod === "bank" ? "accent" : "outline"} 
+                  <Button
+                    variant={withdrawalMethod === "bank" ? "accent" : "outline"}
                     className="flex-1 h-auto py-4"
                     onClick={() => setWithdrawalMethod("bank")}
                   >
@@ -291,7 +291,7 @@ const Withdraw = () => {
 
                     <div className="space-y-2">
                       <Label>Your Wallet Address</Label>
-                      <Input 
+                      <Input
                         placeholder="Enter your wallet address"
                         value={walletAddress}
                         onChange={(e) => setWalletAddress(e.target.value)}
@@ -306,7 +306,7 @@ const Withdraw = () => {
                 {withdrawalMethod === "bank" && (
                   <div className="space-y-2">
                     <Label>Bank Details</Label>
-                    <Textarea 
+                    <Textarea
                       placeholder="Enter your bank details:&#10;Bank Name:&#10;Account Number:&#10;Routing Number:&#10;Account Holder Name:&#10;SWIFT/BIC (for international):"
                       value={bankDetails}
                       onChange={(e) => setBankDetails(e.target.value)}
@@ -323,9 +323,9 @@ const Withdraw = () => {
                   <Label>Withdrawal Amount (USD)</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                    <Input 
-                      type="number" 
-                      placeholder="0.00" 
+                    <Input
+                      type="number"
+                      placeholder="0.00"
                       className="pl-7"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
@@ -350,9 +350,9 @@ const Withdraw = () => {
                   </div>
                 </div>
 
-                <Button 
-                  variant="accent" 
-                  size="lg" 
+                <Button
+                  variant="accent"
+                  size="lg"
                   className="w-full"
                   onClick={handleSubmitWithdrawal}
                   disabled={isSubmitting}
@@ -393,7 +393,7 @@ const Withdraw = () => {
               </p>
               <div className="space-y-2 text-sm">
                 <p className="text-muted-foreground">
-                  Email: <a href="mailto:ranaeputerbaugh@yahoo.com" className="text-accent hover:underline">ranaeputerbaugh@yahoo.com</a>
+                  Email: <a href="mailto:support@crownbillgroup.com" className="text-accent hover:underline">support@crownbillgroup.com</a>
                 </p>
                 {settings && (
                   <p className="text-muted-foreground">
@@ -441,11 +441,10 @@ const Withdraw = () => {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             {getStatusIcon(withdrawal.status)}
-                            <span className={`text-sm capitalize ${
-                              withdrawal.status === 'approved' ? 'text-accent' :
-                              withdrawal.status === 'rejected' ? 'text-destructive' :
-                              'text-muted-foreground'
-                            }`}>
+                            <span className={`text-sm capitalize ${withdrawal.status === 'approved' ? 'text-accent' :
+                                withdrawal.status === 'rejected' ? 'text-destructive' :
+                                  'text-muted-foreground'
+                              }`}>
                               {getStatusLabel(withdrawal.status)}
                             </span>
                           </div>

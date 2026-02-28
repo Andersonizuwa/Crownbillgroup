@@ -1409,7 +1409,7 @@ const AlgoManagementTab = ({ users }: { users: UserProfile[] }) => {
                         size="sm"
                         onClick={() => openGrant(app)}
                       >
-                        <Settings className="h-3 w-3 mr-1" />
+                        <SettingsIcon className="h-3 w-3 mr-1" />
                         Assign Tier
                       </Button>
                     </div>
@@ -2823,11 +2823,20 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
   const [selectedDeposit, setSelectedDeposit] = useState<any>(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [settlementDetails, setSettlementDetails] = useState({
+  const [settlementDetails, setSettlementDetails] = useState<any>({
     bankName: "",
     accountNumber: "",
     accountHolderName: "",
-    referenceCode: ""
+    referenceCode: "",
+    // ACH fields
+    routingNumber: "",
+    accountType: "Checking",
+    // Wire fields
+    recipientAddress: "",
+    bankAddress: "",
+    swiftCode: "",
+    currency: "USD",
+    intermediaryInfo: ""
   });
 
   const getUserEmail = (userId: string) => {
@@ -2874,17 +2883,29 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
     if (!selectedDeposit) return;
 
     try {
-      // Generate reference code if not provided
       const refCode = settlementDetails.referenceCode || `REF-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      const details: any = {
+        bankName: settlementDetails.bankName,
+        accountNumber: settlementDetails.accountNumber,
+        accountHolderName: settlementDetails.accountHolderName,
+        referenceCode: refCode
+      };
+
+      if (selectedDeposit.paymentMethod === 'ach') {
+        details.routingNumber = settlementDetails.routingNumber;
+        details.accountType = settlementDetails.accountType;
+      } else if (selectedDeposit.paymentMethod === 'wire') {
+        details.recipientAddress = settlementDetails.recipientAddress;
+        details.bankAddress = settlementDetails.bankAddress;
+        details.swiftCode = settlementDetails.swiftCode;
+        details.currency = settlementDetails.currency;
+        details.intermediaryInfo = settlementDetails.intermediaryInfo;
+      }
 
       await api.patch(`/admin/deposits/${selectedDeposit.id}`, {
         status: 'awaiting_payment',
-        settlementDetails: {
-          bankName: settlementDetails.bankName,
-          accountNumber: settlementDetails.accountNumber,
-          accountHolderName: settlementDetails.accountHolderName,
-          referenceCode: refCode
-        }
+        settlementDetails: details
       });
 
       toast({
@@ -2897,7 +2918,14 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
         bankName: "",
         accountNumber: "",
         accountHolderName: "",
-        referenceCode: ""
+        referenceCode: "",
+        routingNumber: "",
+        accountType: "Checking",
+        recipientAddress: "",
+        bankAddress: "",
+        swiftCode: "",
+        currency: "USD",
+        intermediaryInfo: ""
       });
       setSelectedDeposit(null);
       fetchDeposits();
@@ -2975,12 +3003,14 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                       <div className="text-sm text-muted-foreground">{getUserName(d.userId)}</div>
                     </div>
                   </TableCell>
-                  <TableCell className="capitalize">
+                  <TableCell>
                     {d.paymentMethod === 'zelle' ? 'Zelle' :
                       d.paymentMethod === 'square' ? 'Square' :
                         d.paymentMethod === 'paypal' ? 'PayPal' :
-                          d.paymentMethod === 'crypto' ? `${d.cryptoType?.toUpperCase() || 'Crypto'}` :
-                            d.paymentMethod}
+                          d.paymentMethod === 'ach' ? 'ACH Transfer' :
+                            d.paymentMethod === 'wire' ? 'Wire Transfer' :
+                              d.paymentMethod === 'crypto' ? `${d.cryptoType?.toUpperCase() || 'Crypto'}` :
+                                d.paymentMethod.charAt(0).toUpperCase() + d.paymentMethod.slice(1)}
                   </TableCell>
                   <TableCell className="font-semibold">${d.amount.toLocaleString()}</TableCell>
                   <TableCell>{getStatusBadge(d.status)}</TableCell>
@@ -3087,51 +3117,140 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
                     {selectedDeposit.paymentMethod === 'zelle' ? 'Zelle' :
                       selectedDeposit.paymentMethod === 'square' ? 'Square' :
                         selectedDeposit.paymentMethod === 'paypal' ? 'PayPal' :
-                          selectedDeposit.paymentMethod === 'crypto' ? `${selectedDeposit.cryptoType?.toUpperCase() || 'Crypto'}` :
-                            selectedDeposit.paymentMethod}
+                          selectedDeposit.paymentMethod === 'ach' ? 'ACH Transfer' :
+                            selectedDeposit.paymentMethod === 'wire' ? 'Wire Transfer' :
+                              selectedDeposit.paymentMethod === 'crypto' ? `${selectedDeposit.cryptoType?.toUpperCase() || 'Crypto'}` :
+                                selectedDeposit.paymentMethod}
                   </span>
                 </div>
                 <div className="text-sm">Amount: <span className="font-semibold">${selectedDeposit.amount.toLocaleString()}</span></div>
               </div>
             )}
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="bankName">Bank Name</Label>
-              <Input
-                id="bankName"
-                value={settlementDetails.bankName}
-                onChange={(e) => setSettlementDetails({ ...settlementDetails, bankName: e.target.value })}
-                placeholder="e.g., Chase Bank"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="accountNumber">Account Number</Label>
-              <Input
-                id="accountNumber"
-                value={settlementDetails.accountNumber}
-                onChange={(e) => setSettlementDetails({ ...settlementDetails, accountNumber: e.target.value })}
-                placeholder="Account number"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="accountHolder">Account Holder Name</Label>
-              <Input
-                id="accountHolder"
-                value={settlementDetails.accountHolderName}
-                onChange={(e) => setSettlementDetails({ ...settlementDetails, accountHolderName: e.target.value })}
-                placeholder="Account holder name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="referenceCode">Reference Code (Optional)</Label>
-              <Input
-                id="referenceCode"
-                value={settlementDetails.referenceCode}
-                onChange={(e) => setSettlementDetails({ ...settlementDetails, referenceCode: e.target.value })}
-                placeholder="Will auto-generate if empty"
-              />
-            </div>
+          {/* Common Fields */}
+          <div className="space-y-2">
+            <Label htmlFor="accountHolder">
+              {selectedDeposit?.paymentMethod === 'wire' ? 'Full Legal Name' : 'Account Holder Name'}
+            </Label>
+            <Input
+              id="accountHolder"
+              value={settlementDetails.accountHolderName}
+              onChange={(e) => setSettlementDetails({ ...settlementDetails, accountHolderName: e.target.value })}
+              placeholder="Name on account"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bankName">Bank Name</Label>
+            <Input
+              id="bankName"
+              value={settlementDetails.bankName}
+              onChange={(e) => setSettlementDetails({ ...settlementDetails, bankName: e.target.value })}
+              placeholder="Bank name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="accountNumber">
+              {selectedDeposit?.paymentMethod === 'wire' ? 'Account Number / IBAN' : 'Account Number'}
+            </Label>
+            <Input
+              id="accountNumber"
+              value={settlementDetails.accountNumber}
+              onChange={(e) => setSettlementDetails({ ...settlementDetails, accountNumber: e.target.value })}
+              placeholder="Account number"
+            />
+          </div>
+
+          {/* ACH Specific Fields */}
+          {selectedDeposit?.paymentMethod === 'ach' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="routingNumber">ACH Routing Number (9 digits)</Label>
+                <Input
+                  id="routingNumber"
+                  value={settlementDetails.routingNumber}
+                  onChange={(e) => setSettlementDetails({ ...settlementDetails, routingNumber: e.target.value })}
+                  placeholder="9-digit routing number"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accountType">Account Type</Label>
+                <Select
+                  value={settlementDetails.accountType}
+                  onValueChange={(val) => setSettlementDetails({ ...settlementDetails, accountType: val })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Checking">Checking</SelectItem>
+                    <SelectItem value="Savings">Savings</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+
+          {/* Wire Specific Fields */}
+          {selectedDeposit?.paymentMethod === 'wire' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="recipientAddress">Recipient Address</Label>
+                <Input
+                  id="recipientAddress"
+                  value={settlementDetails.recipientAddress}
+                  onChange={(e) => setSettlementDetails({ ...settlementDetails, recipientAddress: e.target.value })}
+                  placeholder="Full address of recipient"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bankAddress">Bank Address</Label>
+                <Input
+                  id="bankAddress"
+                  value={settlementDetails.bankAddress}
+                  onChange={(e) => setSettlementDetails({ ...settlementDetails, bankAddress: e.target.value })}
+                  placeholder="Full address of the bank"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="swiftCode">SWIFT/BIC Code</Label>
+                <Input
+                  id="swiftCode"
+                  value={settlementDetails.swiftCode}
+                  onChange={(e) => setSettlementDetails({ ...settlementDetails, swiftCode: e.target.value.toUpperCase() })}
+                  placeholder="Very important for international wires"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currency">Currency</Label>
+                <Input
+                  id="currency"
+                  value={settlementDetails.currency}
+                  onChange={(e) => setSettlementDetails({ ...settlementDetails, currency: e.target.value })}
+                  placeholder="USD, EUR, GBP, etc."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="intermediaryInfo">Intermediary Bank Info (Optional)</Label>
+                <Textarea
+                  id="intermediaryInfo"
+                  value={settlementDetails.intermediaryInfo}
+                  onChange={(e) => setSettlementDetails({ ...settlementDetails, intermediaryInfo: e.target.value })}
+                  placeholder="If their bank requires it"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="referenceCode">Reference Code (Optional)</Label>
+            <Input
+              id="referenceCode"
+              value={settlementDetails.referenceCode}
+              onChange={(e) => setSettlementDetails({ ...settlementDetails, referenceCode: e.target.value })}
+              placeholder="Will auto-generate if empty"
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAssignModalOpen(false)}>
@@ -3189,24 +3308,95 @@ const DepositsTab = ({ users, onWalletUpdate }: { users: UserProfile[]; onWallet
               {selectedDeposit.settlementDetails && (
                 <div className="p-4 bg-muted/30 rounded-lg">
                   <h4 className="font-semibold mb-3">Settlement Details</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Bank Name</Label>
-                      <p className="font-medium">{selectedDeposit.settlementDetails.bankName}</p>
+
+                  {selectedDeposit.paymentMethod === 'ach' ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Account Holder</Label>
+                        <p className="font-medium">{selectedDeposit.settlementDetails.accountHolderName}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Bank Name</Label>
+                        <p className="font-medium">{selectedDeposit.settlementDetails.bankName}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Routing Number</Label>
+                        <p className="font-medium font-mono">{selectedDeposit.settlementDetails.routingNumber}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Account Number</Label>
+                        <p className="font-medium font-mono">{selectedDeposit.settlementDetails.accountNumber}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Account Type</Label>
+                        <p className="font-medium">{selectedDeposit.settlementDetails.accountType}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Reference Code</Label>
+                        <p className="font-medium font-mono">{selectedDeposit.settlementDetails.referenceCode}</p>
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Account Number</Label>
-                      <p className="font-medium font-mono">{selectedDeposit.settlementDetails.accountNumber}</p>
+                  ) : selectedDeposit.paymentMethod === 'wire' ? (
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Full Legal Name</Label>
+                        <p className="font-medium">{selectedDeposit.settlementDetails.accountHolderName}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Recipient Address</Label>
+                        <p className="font-medium">{selectedDeposit.settlementDetails.recipientAddress}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Bank Name</Label>
+                        <p className="font-medium">{selectedDeposit.settlementDetails.bankName}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Bank Address</Label>
+                        <p className="font-medium">{selectedDeposit.settlementDetails.bankAddress}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Account Number / IBAN</Label>
+                        <p className="font-medium font-mono">{selectedDeposit.settlementDetails.accountNumber}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">SWIFT/BIC Code</Label>
+                        <p className="font-medium font-mono">{selectedDeposit.settlementDetails.swiftCode}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Currency</Label>
+                        <p className="font-medium uppercase">{selectedDeposit.settlementDetails.currency}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Reference Code</Label>
+                        <p className="font-medium font-mono">{selectedDeposit.settlementDetails.referenceCode}</p>
+                      </div>
+                      {selectedDeposit.settlementDetails.intermediaryInfo && (
+                        <div className="col-span-2">
+                          <Label className="text-muted-foreground text-xs">Intermediary Bank Info</Label>
+                          <p className="font-medium">{selectedDeposit.settlementDetails.intermediaryInfo}</p>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Account Holder</Label>
-                      <p className="font-medium">{selectedDeposit.settlementDetails.accountHolderName}</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Platform Name</Label>
+                        <p className="font-medium">{selectedDeposit.settlementDetails.bankName}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Account Holder</Label>
+                        <p className="font-medium">{selectedDeposit.settlementDetails.accountHolderName}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Account Identifier</Label>
+                        <p className="font-medium font-mono">{selectedDeposit.settlementDetails.accountNumber}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Reference Code</Label>
+                        <p className="font-medium font-mono">{selectedDeposit.settlementDetails.referenceCode}</p>
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Reference Code</Label>
-                      <p className="font-medium font-mono">{selectedDeposit.settlementDetails.referenceCode}</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
 

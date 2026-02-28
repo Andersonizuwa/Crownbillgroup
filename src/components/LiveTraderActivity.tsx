@@ -25,19 +25,19 @@ const LiveTraderActivity = () => {
     const traders = ["Alex Johnson", "Sarah Chen", "Mike Rodriguez", "Emma Wilson", "David Kim", "Lisa Zhang"];
     const assetTypes = ["stock", "crypto"];
     const actions = ["buy", "sell"];
-    
+
     const symbol = symbols[Math.floor(Math.random() * symbols.length)];
     const traderName = traders[Math.floor(Math.random() * traders.length)];
     const assetType = assetTypes[Math.floor(Math.random() * assetTypes.length)];
     const action = actions[Math.floor(Math.random() * actions.length)];
-    
-    const price = assetType === "crypto" 
+
+    const price = assetType === "crypto"
       ? Math.random() * 50000 + 1000
       : Math.random() * 300 + 50;
-    
+
     const amount = Math.random() * 10 + 0.1;
     const profit = (Math.random() - 0.3) * 500; // -150 to +350 profit
-    
+
     return {
       id: Math.random().toString(36).substr(2, 9),
       traderName,
@@ -73,7 +73,7 @@ const LiveTraderActivity = () => {
 
   const formatTimeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    
+
     if (seconds < 60) return `${seconds}s ago`;
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     return `${Math.floor(seconds / 3600)}h ago`;
@@ -120,25 +120,25 @@ const LiveTraderActivity = () => {
       <CardContent>
         <div className="space-y-3 max-h-96 overflow-y-auto">
           {activities.map((activity) => (
-            <div 
-              key={activity.id} 
-              className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors"
+            <div
+              key={activity.id}
+              className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors gap-3 sm:gap-4"
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium text-foreground truncate">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="font-medium text-foreground truncate max-w-[120px] sm:max-w-none">
                     {activity.traderName}
                   </span>
-                  <Badge 
-                    variant={activity.action === "buy" ? "default" : "destructive"} 
-                    className="text-xs px-2 py-0.5"
+                  <Badge
+                    variant={activity.action === "buy" ? "default" : "destructive"}
+                    className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0"
                   >
                     {activity.action.toUpperCase()}
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-muted-foreground">
                   <span className="font-mono">{activity.symbol}</span>
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge variant="secondary" className="text-[10px] sm:text-xs px-1.5 py-0">
                     {activity.assetType.toUpperCase()}
                   </Badge>
                   <div className="flex items-center gap-1">
@@ -147,20 +147,19 @@ const LiveTraderActivity = () => {
                   </div>
                 </div>
               </div>
-              
-              <div className="text-right ml-3">
-                <div className="font-medium text-foreground">
-                  {activity.amount.toFixed(4)} {activity.symbol}
+
+              <div className="flex sm:flex-col justify-between sm:justify-center items-center sm:items-end gap-2 sm:gap-0 sm:ml-3 pt-2 sm:pt-0 border-t sm:border-0 border-border/50">
+                <div className="font-medium text-foreground text-sm sm:text-base">
+                  {activity.amount.toFixed(4)} <span className="sm:hidden">{activity.symbol}</span>
                 </div>
-                <div className={`text-sm font-medium ${
-                  activity.profit >= 0 ? "text-accent" : "text-destructive"
-                }`}>
+                <div className={`text-sm font-semibold ${activity.profit >= 0 ? "text-accent" : "text-destructive"
+                  }`}>
                   {activity.profit >= 0 ? "+" : ""}${activity.profit.toFixed(2)}
                 </div>
               </div>
             </div>
           ))}
-          
+
           {activities.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />

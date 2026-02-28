@@ -1,5 +1,5 @@
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, InvestmentPlan } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -9,7 +9,7 @@ async function main() {
     });
 
     console.log('--- Current Investment Plans ---');
-    plans.forEach(p => {
+    plans.forEach((p: InvestmentPlan) => {
         console.log(`[${p.name}] Min: $${p.minAmount}, Max: $${p.maxAmount}, Return: ${p.returnPercentage}%, Duration: ${p.durationDays} days`);
     });
     console.log('--------------------------------');

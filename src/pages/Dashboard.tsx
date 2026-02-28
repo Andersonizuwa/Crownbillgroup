@@ -178,7 +178,7 @@ I would like to inquire about the status of my application and discuss any addit
 Thank you for your time.
 
 Best regards`);
-    window.location.href = `mailto:ranaeputerbaugh@yahoo.com?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:support@crownbillgroup.com?subject=${subject}&body=${body}`;
   };
 
   const getAccountStatusColor = (status: string) => {

@@ -18,8 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { 
-  ArrowRight, 
+import {
+  ArrowRight,
   Bitcoin,
   DollarSign,
   AlertCircle,
@@ -65,6 +65,8 @@ const FundAccount = () => {
   ] : [];
 
   const bankOptions = [
+    { value: "ach", name: "ACH Transfer" },
+    { value: "wire", name: "Wire Transfer" },
     { value: "zelle", name: "Zelle" },
     { value: "square", name: "Square/Cash App" },
     { value: "paypal", name: "PayPal" }
@@ -75,12 +77,12 @@ const FundAccount = () => {
   // Polling function for settlement details
   const startPollingForSettlementDetails = (depositId: string) => {
     setPollingDepositId(depositId);
-    
+
     const pollInterval = setInterval(async () => {
       try {
         const response = await api.get(`/user/deposits/${depositId}`);
         const deposit = response.data;
-        
+
         if (deposit.settlementDetails && deposit.status === 'awaiting_payment') {
           // Settlement details are ready
           clearInterval(pollInterval);
@@ -94,7 +96,7 @@ const FundAccount = () => {
           // Stop polling if rejected
           clearInterval(pollInterval);
           setPollingDepositId(null);
-          
+
           toast({
             variant: "destructive",
             title: "Deposit Rejected",
@@ -123,12 +125,12 @@ const FundAccount = () => {
     try {
       const response = await api.get('/user/deposits');
       const deposits = response.data || [];
-      
+
       // Look for deposits with settlement details in awaiting_payment status
-      const pendingDeposit = deposits.find((deposit: any) => 
+      const pendingDeposit = deposits.find((deposit: any) =>
         deposit.settlementDetails && deposit.status === 'awaiting_payment'
       );
-      
+
       if (pendingDeposit && !pollingDepositId) {
         // Show modal
         setDepositForModal(pendingDeposit);
@@ -161,9 +163,9 @@ const FundAccount = () => {
 
   const handleSubmitProof = async () => {
     if (!user) return;
-    
+
     setIsSubmitting(true);
-    
+
     try {
       let depositId = selectedDepositForProof?.id;
 
@@ -183,21 +185,21 @@ const FundAccount = () => {
 
       // Submit proof
       const formData = new FormData();
-      
+
       if (proofFiles) {
         for (let i = 0; i < proofFiles.length; i++) {
           formData.append('files', proofFiles[i]);
         }
       }
-      
+
       formData.append('transactionHash', transactionHash || '');
       formData.append('proofNotes', proofNotes || '');
-      
+
       // Only include amount if we are creating a new one (not for fiat which already has amount)
       if (!selectedDepositForProof) {
         formData.append('amount', amount || '0');
       }
-      
+
       await api.patch(`/user/deposits/${depositId}/proof`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -215,7 +217,7 @@ const FundAccount = () => {
       setTransactionHash("");
       setProofNotes("");
       setProofFiles(null);
-      
+
       // Refresh deposits
       fetchDeposits();
     } catch (error: any) {
@@ -287,8 +289,8 @@ const FundAccount = () => {
 
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <Button 
-                        variant={fundingMethod === "fiat" ? "accent" : "outline"} 
+                      <Button
+                        variant={fundingMethod === "fiat" ? "accent" : "outline"}
                         className="h-auto py-4"
                         onClick={() => {
                           setFundingMethod("fiat");
@@ -297,13 +299,13 @@ const FundAccount = () => {
                       >
                         <DollarSign className="mr-2 h-5 w-5" />
                         <div className="text-left">
-                          <div className="font-medium text-sm">Bank Transfer/Zelle/Square/Paypal</div>
-                          <div className="text-xs opacity-70">P2P - 10% processing fee</div>
+                          <div className="font-medium text-sm">Bank Transfer/P2P</div>
+                          <div className="text-xs opacity-70">ACH/Wire/Zelle/Square/PayPal</div>
                         </div>
                       </Button>
 
-                      <Button 
-                        variant={fundingMethod === "crypto" ? "accent" : "outline"} 
+                      <Button
+                        variant={fundingMethod === "crypto" ? "accent" : "outline"}
                         className="h-auto py-4"
                         onClick={() => {
                           setFundingMethod("crypto");
@@ -322,7 +324,7 @@ const FundAccount = () => {
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <Label>Amount to Fund ($)</Label>
-                          <Input 
+                          <Input
                             type="number"
                             placeholder="Enter amount"
                             value={amount}
@@ -333,7 +335,7 @@ const FundAccount = () => {
                             Minimum: $10 • 10% processing fee will be applied
                           </p>
                         </div>
-                        
+
                         <div className="space-y-2">
                           <Label>Select Payment Method</Label>
                           <Select value={selectedBank} onValueChange={setSelectedBank}>
@@ -384,13 +386,13 @@ const FundAccount = () => {
                             <div className="space-y-2">
                               <Label>Wallet Address ({selectedCryptoData?.name})</Label>
                               <div className="flex gap-2">
-                                <Input 
-                                  readOnly 
-                                  value={selectedCryptoData?.address || ""} 
+                                <Input
+                                  readOnly
+                                  value={selectedCryptoData?.address || ""}
                                   className="font-mono text-xs"
                                 />
-                                <Button 
-                                  variant="outline" 
+                                <Button
+                                  variant="outline"
                                   size="icon"
                                   onClick={() => copyToClipboard(selectedCryptoData?.address || "")}
                                 >
@@ -428,9 +430,9 @@ const FundAccount = () => {
                       </div>
                     )}
 
-                    <Button 
-                      variant="accent" 
-                      size="lg" 
+                    <Button
+                      variant="accent"
+                      size="lg"
                       className="w-full"
                       disabled={
                         (fundingMethod === "crypto" && !selectedCryptoData) ||
@@ -449,22 +451,22 @@ const FundAccount = () => {
                               type: 'fiat_intent',
                               status: 'pending_matching'
                             });
-                            
+
                             toast({
                               title: "Funding Request Submitted",
                               description: "Please wait while we assign a settlement counterparty. This may take up to 30 minutes.",
                             });
-                            
+
                             // Start polling for settlement details
                             if (response.data?.id) {
                               startPollingForSettlementDetails(response.data.id);
                             }
-                            
+
                             // Reset form
                             setAmount("");
                             setSelectedBank("");
                             setFundingMethod("crypto");
-                            
+
                             // Refresh deposits to show the new pending deposit
                             fetchDeposits();
                           } catch (error: any) {
@@ -504,8 +506,8 @@ const FundAccount = () => {
                     <h2 className="text-xl font-semibold text-foreground">
                       {selectedDepositForProof ? "Submit Fiat Payment Proof" : "Submit Crypto Payment Proof"}
                     </h2>
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="sm"
                       onClick={() => {
                         setShowPaymentDetails(false);
@@ -527,23 +529,95 @@ const FundAccount = () => {
                         Settlement Details
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Bank Name</p>
-                          <p className="font-medium">{selectedDepositForProof.settlementDetails.bankName}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Account Holder</p>
-                          <p className="font-medium">{selectedDepositForProof.settlementDetails.accountHolderName}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Account Number</p>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium font-mono">{selectedDepositForProof.settlementDetails.accountNumber}</p>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(selectedDepositForProof.settlementDetails.accountNumber)}>
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
+                        {/* ACH Specific Fields */}
+                        {selectedDepositForProof.paymentMethod === 'ach' && (
+                          <>
+                            <div>
+                              <p className="text-muted-foreground">Account Holder</p>
+                              <p className="font-medium">{selectedDepositForProof.settlementDetails.accountHolderName}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Bank Name</p>
+                              <p className="font-medium">{selectedDepositForProof.settlementDetails.bankName}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Routing Number</p>
+                              <p className="font-medium font-mono">{selectedDepositForProof.settlementDetails.routingNumber}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Account Number</p>
+                              <p className="font-medium font-mono">{selectedDepositForProof.settlementDetails.accountNumber}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Account Type</p>
+                              <p className="font-medium">{selectedDepositForProof.settlementDetails.accountType}</p>
+                            </div>
+                          </>
+                        )}
+
+                        {/* Wire Specific Fields */}
+                        {selectedDepositForProof.paymentMethod === 'wire' && (
+                          <>
+                            <div>
+                              <p className="text-muted-foreground">Full Legal Name</p>
+                              <p className="font-medium">{selectedDepositForProof.settlementDetails.accountHolderName}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Recipient Address</p>
+                              <p className="font-medium">{selectedDepositForProof.settlementDetails.recipientAddress}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Bank Name</p>
+                              <p className="font-medium">{selectedDepositForProof.settlementDetails.bankName}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Bank Address</p>
+                              <p className="font-medium">{selectedDepositForProof.settlementDetails.bankAddress}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Account Number / IBAN</p>
+                              <p className="font-medium font-mono">{selectedDepositForProof.settlementDetails.accountNumber}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">SWIFT/BIC Code</p>
+                              <p className="font-medium font-mono uppercase">{selectedDepositForProof.settlementDetails.swiftCode}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Currency</p>
+                              <p className="font-medium uppercase">{selectedDepositForProof.settlementDetails.currency}</p>
+                            </div>
+                            {selectedDepositForProof.settlementDetails.intermediaryInfo && (
+                              <div className="col-span-2">
+                                <p className="text-muted-foreground">Intermediary Bank Info</p>
+                                <p className="font-medium">{selectedDepositForProof.settlementDetails.intermediaryInfo}</p>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {/* Default/Generic Fields (Zelle, Square, PayPal) */}
+                        {!['ach', 'wire'].includes(selectedDepositForProof.paymentMethod) && (
+                          <>
+                            <div>
+                              <p className="text-muted-foreground">Bank/Platform Name</p>
+                              <p className="font-medium">{selectedDepositForProof.settlementDetails.bankName}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Account Holder</p>
+                              <p className="font-medium">{selectedDepositForProof.settlementDetails.accountHolderName}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Account Identifier</p>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium font-mono">{selectedDepositForProof.settlementDetails.accountNumber}</p>
+                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(selectedDepositForProof.settlementDetails.accountNumber)}>
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+
                         <div>
                           <p className="text-muted-foreground">Reference Code</p>
                           <div className="flex items-center gap-2">
@@ -578,7 +652,7 @@ const FundAccount = () => {
                       )}
                       <div className="space-y-4">
                         <h4 className="font-medium text-foreground">Upload Transfer Receipt</h4>
-                        
+
                         <div className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:bg-muted/30 transition-colors"
                           onClick={() => document.getElementById('proof-upload')?.click()}
                         >
@@ -589,16 +663,16 @@ const FundAccount = () => {
                           <p className="text-xs text-muted-foreground">
                             PNG, JPG, PDF up to 10MB
                           </p>
-                          <input 
-                            id="proof-upload" 
-                            type="file" 
-                            className="hidden" 
-                            accept="image/*,application/pdf" 
+                          <input
+                            id="proof-upload"
+                            type="file"
+                            className="hidden"
+                            accept="image/*,application/pdf"
                             multiple
                             onChange={(e) => setProofFiles(e.target.files)}
                           />
                         </div>
-                        
+
                         {proofFiles && proofFiles.length > 0 && (
                           <div className="mt-3 text-sm text-muted-foreground">
                             {Array.from(proofFiles).map((file, i) => (
@@ -610,19 +684,19 @@ const FundAccount = () => {
                           </div>
                         )}
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label>Transaction Hash/Reference</Label>
-                        <Input 
+                        <Input
                           placeholder="Enter your transaction hash or reference number"
                           value={transactionHash}
                           onChange={(e) => setTransactionHash(e.target.value)}
                         />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label>Additional Notes</Label>
-                        <Textarea 
+                        <Textarea
                           placeholder="Any additional details about your payment..."
                           value={proofNotes}
                           onChange={(e) => setProofNotes(e.target.value)}
@@ -646,9 +720,9 @@ const FundAccount = () => {
                         </div>
                       )}
 
-                      <Button 
-                        variant="accent" 
-                        size="lg" 
+                      <Button
+                        variant="accent"
+                        size="lg"
                         className="w-full"
                         onClick={handleSubmitProof}
                         disabled={isSubmitting ||
@@ -668,7 +742,7 @@ const FundAccount = () => {
               <h2 className="text-xl font-semibold text-foreground mb-6">
                 Your Deposit History
               </h2>
-              
+
               {deposits.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>No deposit history found</p>
@@ -691,18 +765,17 @@ const FundAccount = () => {
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            deposit.status === 'approved' ? 'bg-accent/20 text-accent' :
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${deposit.status === 'approved' ? 'bg-accent/20 text-accent' :
                             deposit.status === 'rejected' ? 'bg-destructive/20 text-destructive' :
-                            'bg-warning/20 text-warning'
-                          }`}>
+                              'bg-warning/20 text-warning'
+                            }`}>
                             {getStatusLabel(deposit.status)}
                           </span>
-                          
+
                           {deposit.status === 'awaiting_payment' && (
-                            <Button 
-                              variant="accent" 
-                              size="sm" 
+                            <Button
+                              variant="accent"
+                              size="sm"
                               className="h-7 text-xs"
                               onClick={() => {
                                 setSelectedDepositForProof(deposit);
@@ -714,7 +787,7 @@ const FundAccount = () => {
                           )}
                         </div>
                       </div>
-                      
+
                       {deposit.status === 'awaiting_payment' && deposit.settlementDetails && (
                         <div className="mt-3 p-3 bg-accent/5 rounded border border-accent/10 text-xs space-y-1">
                           <p className="font-semibold text-foreground mb-1">Settlement Details:</p>
@@ -724,19 +797,19 @@ const FundAccount = () => {
                           <p><span className="text-muted-foreground">Ref:</span> <span className="text-accent font-medium">{deposit.settlementDetails.referenceCode}</span></p>
                         </div>
                       )}
-                      
+
                       {deposit.transactionHash && (
                         <div className="mt-2 text-sm text-muted-foreground">
                           <span className="font-medium">Transaction:</span> {deposit.transactionHash}
                         </div>
                       )}
-                      
+
                       {deposit.proofNotes && (
                         <div className="mt-2 text-sm text-muted-foreground">
                           <span className="font-medium">Notes:</span> {deposit.proofNotes}
                         </div>
                       )}
-                      
+
                       {deposit.status === 'rejected' && deposit.adminNotes && (
                         <div className="mt-2 p-2 rounded bg-destructive/10 text-sm text-destructive">
                           <span className="font-medium">Rejection Reason:</span> {deposit.adminNotes}

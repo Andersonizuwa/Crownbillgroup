@@ -176,7 +176,7 @@ export default function ProprietaryAlgorithmApply() {
                     {/* Progress */}
                     <div className="mb-8">
                         <div className="flex justify-between text-xs text-muted-foreground mb-2">
-                            <span>Step {step + 1} of 4 — Investor Profile</span>
+                            <span>Step {step + 1} of {SECTIONS.length} — Investor Profile</span>
                             <span>{SECTIONS[step]}</span>
                         </div>
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
